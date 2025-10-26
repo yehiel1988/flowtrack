@@ -345,10 +345,10 @@
             letter-spacing: 0.5px;
         }
 
-        .status-badge-neutral {
-            background: #f1f5f9;
-            color: #475569;
-            border: 1px solid #e2e8f0;
+        .availability-text {
+            font-size: 14px;
+            font-weight: 600;
+            color: #334155;
         }
 
         .status-critical {
@@ -482,7 +482,7 @@
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="criticalItems">0</div>
-                <div class="stat-label">פריטים קריטיים</div>
+                <div class="stat-label">פריטים חסרים</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="warningItems">0</div>
@@ -532,7 +532,7 @@
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">מלאי זמין במחסן ראשי</th>
+                        <th style="width: 12%;">פריט זמין במחסן ראשי</th>
                         <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
@@ -581,6 +581,7 @@
                 name: document.getElementById('itemName').value,
                 currentStock: parseInt(document.getElementById('currentStock').value),
                 minStock: parseInt(document.getElementById('minStock').value),
+                available: 'כן/לא',
                 lastUpdated: new Date().toISOString()
             };
 
@@ -641,8 +642,10 @@
                                 ${status.reorderAmount}
                             </span>
                         </td>
-                        <td>
-                            <span class="status-badge ${status.class}">${status.text}</span>
+                        <td style="text-align: center;">
+                            <span style="font-size: 14px; font-weight: 600; color: #334155;">
+                                ${item.available || 'כן/לא'}
+                            </span>
                         </td>
                         <td>
                             <button class="delete-btn" onclick="deleteItem(${item.id})">🗑️</button>
@@ -660,18 +663,12 @@
             let statusResult = {};
             
             if (item.currentStock < item.minStock) {
-                statusResult.class = 'status-critical';
-                statusResult.text = '🔴 קריטי';
                 statusResult.reorderClass = 'status-critical';
                 statusResult.reorderAmount = difference;
             } else if (item.currentStock <= threshold) {
-                statusResult.class = 'status-warning';
-                statusResult.text = '🟡 אזהרה';
                 statusResult.reorderClass = 'status-warning';
                 statusResult.reorderAmount = 0;
             } else {
-                statusResult.class = 'status-good';
-                statusResult.text = '🟢 תקין';
                 statusResult.reorderClass = 'status-good';
                 statusResult.reorderAmount = 0;
             }
@@ -737,7 +734,7 @@
             const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
             
             if (criticalItems.length > 0) {
-                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים במצב קריטי ודורשים הזמנה מיידית!`;
+                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים בחוסר ודורשים הזמנה מיידית!`;
                 alertBanner.classList.add('show');
             } else {
                 alertBanner.classList.remove('show');
@@ -771,7 +768,7 @@
                 return;
             }
 
-            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'מלאי זמין במחסן ראשי'];
+            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'זמין במחסן ראשי'];
             const csvContent = [
                 headers.join(','),
                 ...inventory.map(item => {
@@ -782,7 +779,7 @@
                         item.currentStock,
                         item.minStock,
                         status.reorderAmount,
-                        `"${status.text}"`
+                        `"כן/לא"`
                     ].join(',');
                 })
             ].join('\n');
