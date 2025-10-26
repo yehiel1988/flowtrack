@@ -160,6 +160,7 @@
             margin-bottom: 0;
             display: none;
             align-items: center;
+            justify-content: space-between;
             gap: 12px;
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
             animation: pulse 2s infinite;
@@ -167,6 +168,145 @@
 
         .alert-banner.show {
             display: flex;
+        }
+
+        .alert-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .btn-view-critical {
+            background: white;
+            color: #dc2626;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+        }
+
+        .btn-view-critical:hover {
+            background: #fee2e2;
+            transform: translateY(-1px);
+        }
+
+        .critical-items-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .critical-items-modal.show {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            padding: 32px;
+            max-width: 800px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .modal-header h2 {
+            color: #dc2626;
+            font-size: 1.5rem;
+            margin: 0;
+        }
+
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 28px;
+            color: #64748b;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            color: #dc2626;
+            transform: scale(1.1);
+        }
+
+        .critical-items-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .critical-item-card {
+            background: #fee2e2;
+            border: 2px solid #dc2626;
+            border-radius: 8px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .critical-item-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .critical-item-name {
+            font-weight: 700;
+            color: #0f172a;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+
+        .critical-item-sku {
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .critical-item-stat {
+            text-align: center;
+        }
+
+        .critical-item-label {
+            font-size: 11px;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .critical-item-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: #dc2626;
         }
 
         @keyframes pulse {
@@ -483,10 +623,13 @@
 
         <!-- Alert Banner -->
         <div class="alert-banner" id="alertBanner">
-            <svg class="icon" viewBox="0 0 24 24">
-                <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-            </svg>
-            <span id="alertText"></span>
+            <div class="alert-content">
+                <svg class="icon" viewBox="0 0 24 24">
+                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
+                </svg>
+                <span id="alertText"></span>
+            </div>
+            <button class="btn-view-critical" onclick="showCriticalItems()">📋 הצג רשימה</button>
         </div>
 
         <!-- Statistics -->
@@ -497,7 +640,7 @@
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="criticalItems">0</div>
-                <div class="stat-label">פריטים למשיכה</div>
+                <div class="stat-label">פריטים קריטיים</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="warningItems">0</div>
@@ -547,7 +690,7 @@
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">זמין במחסן ראשי</th>
+                        <th style="width: 12%;">פריט זמין במחסן ראשי</th>
                         <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
@@ -560,6 +703,17 @@
 
     <div class="notification" id="notification">
         <span id="notificationText"></span>
+    </div>
+
+    <!-- Critical Items Modal -->
+    <div class="critical-items-modal" id="criticalModal" onclick="closeCriticalModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2>🚨 פריטים הדורשים הזמנה מיידית</h2>
+                <button class="modal-close" onclick="closeCriticalModal()">&times;</button>
+            </div>
+            <div class="critical-items-list" id="criticalItemsList"></div>
+        </div>
     </div>
 
     <script>
@@ -658,7 +812,7 @@
                         </td>
                         <td style="text-align: center;">
                             <span style="font-size: 14px; font-weight: 600; color: #334155;">
-                                כן/לא
+                                ${item.available || 'כן/לא'}
                             </span>
                         </td>
                         <td>
@@ -748,10 +902,55 @@
             const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
             
             if (criticalItems.length > 0) {
-                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים חסרים ודורשים הזמנה מיידית!`;
+                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים במצב קריטי ודורשים הזמנה מיידית!`;
                 alertBanner.classList.add('show');
             } else {
                 alertBanner.classList.remove('show');
+            }
+        }
+
+        // Show critical items modal
+        function showCriticalItems() {
+            const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
+            const modal = document.getElementById('criticalModal');
+            const list = document.getElementById('criticalItemsList');
+            
+            if (criticalItems.length === 0) {
+                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">אין פריטים קריטיים כרגע 🎉</div>';
+            } else {
+                list.innerHTML = criticalItems.map(item => {
+                    const required = item.minStock - item.currentStock;
+                    return `
+                        <div class="critical-item-card">
+                            <div class="critical-item-info">
+                                <div class="critical-item-name">${escapeHtml(item.name)}</div>
+                                <div class="critical-item-sku">מק"ט: ${escapeHtml(item.sku)}</div>
+                            </div>
+                            <div class="critical-item-stat">
+                                <div class="critical-item-label">מלאי נוכחי</div>
+                                <div class="critical-item-value">${item.currentStock}</div>
+                            </div>
+                            <div class="critical-item-stat">
+                                <div class="critical-item-label">מלאי מינימלי</div>
+                                <div class="critical-item-value">${item.minStock}</div>
+                            </div>
+                            <div class="critical-item-stat">
+                                <div class="critical-item-label">נדרש להזמין</div>
+                                <div class="critical-item-value" style="color: #dc2626; font-size: 22px;">${required}</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            }
+            
+            modal.classList.add('show');
+        }
+
+        // Close critical items modal
+        function closeCriticalModal(event) {
+            const modal = document.getElementById('criticalModal');
+            if (!event || event.target === modal) {
+                modal.classList.remove('show');
             }
         }
 
