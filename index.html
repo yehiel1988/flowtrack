@@ -532,7 +532,7 @@
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">סטטוס</th>
+                        <th style="width: 12%;">מלאי זמין במחסן ראשי</th>
                         <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
@@ -771,7 +771,7 @@
                 return;
             }
 
-            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'סטטוס'];
+            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'מלאי זמין במחסן ראשי'];
             const csvContent = [
                 headers.join(','),
                 ...inventory.map(item => {
