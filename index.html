@@ -366,6 +366,21 @@
             color: white;
         }
 
+        .status-critical {
+            background: #dc2626;
+            color: white;
+        }
+
+        .status-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .status-good {
+            background: #059669;
+            color: white;
+        }
+
         .reorder-value {
             font-size: 16px;
             font-weight: 700;
@@ -482,7 +497,7 @@
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="criticalItems">0</div>
-                <div class="stat-label">פריטים חסרים</div>
+                <div class="stat-label">פריטים למשיכה</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="warningItems">0</div>
@@ -532,7 +547,7 @@
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">פריט זמין במחסן ראשי</th>
+                        <th style="width: 12%;">זמין במחסן ראשי</th>
                         <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
@@ -581,7 +596,6 @@
                 name: document.getElementById('itemName').value,
                 currentStock: parseInt(document.getElementById('currentStock').value),
                 minStock: parseInt(document.getElementById('minStock').value),
-                available: 'כן/לא',
                 lastUpdated: new Date().toISOString()
             };
 
@@ -644,7 +658,7 @@
                         </td>
                         <td style="text-align: center;">
                             <span style="font-size: 14px; font-weight: 600; color: #334155;">
-                                ${item.available || 'כן/לא'}
+                                ${item.available || 'כן'}
                             </span>
                         </td>
                         <td>
@@ -734,7 +748,7 @@
             const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
             
             if (criticalItems.length > 0) {
-                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים בחוסר ודורשים הזמנה מיידית!`;
+                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים חסרים ודורשים הזמנה מיידית!`;
                 alertBanner.classList.add('show');
             } else {
                 alertBanner.classList.remove('show');
@@ -768,7 +782,7 @@
                 return;
             }
 
-            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'מלאי זמין במחסן ראשי'];
+            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'זמין במחסן ראשי'];
             const csvContent = [
                 headers.join(','),
                 ...inventory.map(item => {
