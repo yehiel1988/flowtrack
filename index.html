@@ -218,7 +218,7 @@
 
         .form-row {
             display: grid;
-            grid-template-columns: 1fr 2fr 3fr 1fr 1fr 100px;
+            grid-template-columns: 1fr 2fr 1fr 1fr 100px;
             gap: 12px;
             align-items: end;
         }
@@ -345,6 +345,12 @@
             letter-spacing: 0.5px;
         }
 
+        .status-badge-neutral {
+            background: #f1f5f9;
+            color: #475569;
+            border: 1px solid #e2e8f0;
+        }
+
         .status-critical {
             background: #dc2626;
             color: white;
@@ -434,8 +440,8 @@
             <div class="header-title">
                 <div class="company-logo">🏭 אחזקת משלוחים</div>
                 <div>
-                    <h1>FlowTrack – מערכת חכמה לניהול מלאי</h1>
-                    <p class="header-subtitle">בקרת מלאי, התרעות חכמות וניתוח נתונים</p>
+                    <h1>FlowTrack – מערכת חכמה לניהול מלאי, בקרה ויעילות תפעולית</h1>
+                    <p class="header-subtitle">בקרה מלאה על המלאי, התרעות חכמות וניתוח נתונים</p>
                 </div>
             </div>
             <div class="header-actions">
@@ -501,10 +507,6 @@
                         <input type="text" id="itemName" required placeholder="לדוגמה: ברגים">
                     </div>
                     <div class="form-group">
-                        <label>תיאור</label>
-                        <input type="text" id="itemDescription" placeholder="תיאור מפורט של הפריט">
-                    </div>
-                    <div class="form-group">
                         <label>מלאי במחסן</label>
                         <input type="number" id="currentStock" required min="0" placeholder="20">
                     </div>
@@ -525,14 +527,13 @@
             <table class="inventory-table">
                 <thead>
                     <tr>
-                        <th style="width: 10%;">מקט</th>
-                        <th style="width: 15%;">שם הפריט</th>
-                        <th style="width: 23%;">תיאור</th>
-                        <th style="width: 10%;">מלאי במחסן</th>
-                        <th style="width: 10%;">מלאי מינימלי</th>
-                        <th style="width: 10%;">כמות למשיכה</th>
-                        <th style="width: 10%;">סטטוס</th>
-                        <th style="width: 7%;">פעולות</th>
+                        <th style="width: 15%;">מקט</th>
+                        <th style="width: 25%;">שם הפריט</th>
+                        <th style="width: 15%;">מלאי במחסן</th>
+                        <th style="width: 15%;">מלאי מינימלי</th>
+                        <th style="width: 12%;">כמות למשיכה</th>
+                        <th style="width: 12%;">סטטוס</th>
+                        <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
                 <tbody id="inventoryTableBody">
@@ -578,7 +579,6 @@
                 id: Date.now(),
                 sku: document.getElementById('itemSku').value,
                 name: document.getElementById('itemName').value,
-                description: document.getElementById('itemDescription').value,
                 currentStock: parseInt(document.getElementById('currentStock').value),
                 minStock: parseInt(document.getElementById('minStock').value),
                 lastUpdated: new Date().toISOString()
@@ -600,7 +600,7 @@
             if (inventory.length === 0) {
                 tbody.innerHTML = `
                     <tr>
-                        <td colspan="8" style="text-align: center; padding: 40px; color: #718096;">
+                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
                             <svg style="width: 48px; height: 48px; margin-bottom: 12px; fill: #cbd5e0;" viewBox="0 0 24 24">
                                 <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
                             </svg>
@@ -625,11 +625,6 @@
                         <td>
                             <input type="text" value="${escapeHtml(item.name)}" 
                                    onchange="updateItem(${item.id}, 'name', this.value)">
-                        </td>
-                        <td>
-                            <input type="text" value="${escapeHtml(item.description || '')}" 
-                                   onchange="updateItem(${item.id}, 'description', this.value)"
-                                   placeholder="הזן תיאור...">
                         </td>
                         <td>
                             <input type="number" value="${item.currentStock}" min="0"
@@ -776,7 +771,7 @@
                 return;
             }
 
-            const headers = ['מקט', 'שם הפריט', 'תיאור', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'סטטוס'];
+            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'סטטוס'];
             const csvContent = [
                 headers.join(','),
                 ...inventory.map(item => {
@@ -784,7 +779,6 @@
                     return [
                         `"${item.sku}"`,
                         `"${item.name}"`,
-                        `"${item.description || ''}"`,
                         item.currentStock,
                         item.minStock,
                         status.reorderAmount,
