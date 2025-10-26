@@ -640,7 +640,7 @@
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="criticalItems">0</div>
-                <div class="stat-label">פריטים קריטיים</div>
+                <div class="stat-label">פריטים למשיכה</div>
             </div>
             <div class="stat-box">
                 <div class="stat-number" id="warningItems">0</div>
@@ -690,7 +690,7 @@
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">פריט זמין במחסן ראשי</th>
+                        <th style="width: 12%;">זמין במחסן ראשי</th>
                         <th style="width: 10%;">פעולות</th>
                     </tr>
                 </thead>
@@ -902,7 +902,7 @@
             const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
             
             if (criticalItems.length > 0) {
-                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים במצב קריטי ודורשים הזמנה מיידית!`;
+                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים חסרים ודורשים הזמנה מיידית!`;
                 alertBanner.classList.add('show');
             } else {
                 alertBanner.classList.remove('show');
@@ -916,7 +916,7 @@
             const list = document.getElementById('criticalItemsList');
             
             if (criticalItems.length === 0) {
-                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">אין פריטים קריטיים כרגע 🎉</div>';
+                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">אין פריטים חסרים כרגע 🎉</div>';
             } else {
                 list.innerHTML = criticalItems.map(item => {
                     const required = item.minStock - item.currentStock;
