@@ -422,6 +422,28 @@
             color: #64748b;
         }
 
+        .inventory-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s ease;
+        }
+
+        .inventory-table th.sortable:hover {
+            background: #e2e8f0;
+        }
+
+        .sort-icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 16px;
+            color: #94a3b8;
+            transition: color 0.2s ease;
+        }
+
+        .sort-icon.active {
+            color: #0891b2;
+        }
+
         .inventory-table tbody tr {
             border-bottom: 1px solid #e2e8f0;
             transition: all 0.15s ease;
@@ -489,21 +511,6 @@
             font-size: 14px;
             font-weight: 600;
             color: #334155;
-        }
-
-        .status-critical {
-            background: #dc2626;
-            color: white;
-        }
-
-        .status-warning {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .status-good {
-            background: #059669;
-            color: white;
         }
 
         .status-critical {
@@ -686,7 +693,10 @@
                 <thead>
                     <tr>
                         <th style="width: 15%;">מקט</th>
-                        <th style="width: 25%;">שם הפריט</th>
+                        <th class="sortable" style="width: 25%;" onclick="sortByName()">
+                            <span class="sort-icon" id="sortIcon">⇅</span>
+                            שם הפריט
+                        </th>
                         <th style="width: 15%;">מלאי במחסן</th>
                         <th style="width: 15%;">מלאי מינימלי</th>
                         <th style="width: 12%;">כמות למשיכה</th>
@@ -718,6 +728,7 @@
 
     <script>
         let inventory = [];
+        let sortOrder = 'none'; // 'none', 'asc', 'desc'
 
         // Initialize system
         function initSystem() {
@@ -740,6 +751,29 @@
             document.getElementById('currentTime').textContent = timeStr;
         }
 
+        // Sort by name function
+        function sortByName() {
+            const sortIcon = document.getElementById('sortIcon');
+            
+            if (sortOrder === 'none' || sortOrder === 'desc') {
+                // Sort A-Z (ascending)
+                inventory.sort((a, b) => a.name.localeCompare(b.name, 'he'));
+                sortOrder = 'asc';
+                sortIcon.textContent = '↓';
+                sortIcon.classList.add('active');
+                showNotification('ממוין א-ת');
+            } else {
+                // Sort Z-A (descending)
+                inventory.sort((a, b) => b.name.localeCompare(a.name, 'he'));
+                sortOrder = 'desc';
+                sortIcon.textContent = '↑';
+                sortIcon.classList.add('active');
+                showNotification('ממוין ת-א');
+            }
+            
+            renderTable();
+        }
+
         // Add new item
         document.getElementById('addItemForm').addEventListener('submit', function(e) {
             e.preventDefault();
@@ -755,6 +789,12 @@
 
             inventory.push(item);
             saveData();
+            
+            // Reset sort order when adding new item
+            sortOrder = 'none';
+            document.getElementById('sortIcon').textContent = '⇅';
+            document.getElementById('sortIcon').classList.remove('active');
+            
             renderTable();
             updateStats();
             checkAlerts();
