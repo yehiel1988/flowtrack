@@ -852,14 +852,12 @@
             const sortIcon = document.getElementById('sortIcon');
             
             if (sortOrder === 'none' || sortOrder === 'desc') {
-                // Sort A-Z (ascending)
                 inventory.sort((a, b) => a.name.localeCompare(b.name, 'he'));
                 sortOrder = 'asc';
                 sortIcon.textContent = '↓';
                 sortIcon.classList.add('active');
                 showNotification('ממוין א-ת');
             } else {
-                // Sort Z-A (descending)
                 inventory.sort((a, b) => b.name.localeCompare(a.name, 'he'));
                 sortOrder = 'desc';
                 sortIcon.textContent = '↑';
@@ -897,12 +895,9 @@
 
                 if (response.ok) {
                     inventory.push(item);
-                    
-                    // Reset sort order when adding new item
                     sortOrder = 'none';
                     document.getElementById('sortIcon').textContent = '⇅';
                     document.getElementById('sortIcon').classList.remove('active');
-                    
                     renderTable();
                     updateStats();
                     checkAlerts();
@@ -1149,10 +1144,7 @@
 תודה רבה,
 `;
             
-            // Create mailto link that opens Outlook
             const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            
-            // Open in new window
             window.location.href = mailtoLink;
         }
 
@@ -1205,14 +1197,12 @@
                     checkAlerts();
                     updateSyncStatus('success');
                 } else {
-                    // Fallback to empty inventory
                     inventory = [];
                     updateSyncStatus('error');
                 }
             } catch (e) {
                 console.error('Error loading data:', e);
                 updateSyncStatus('error');
-                // Try to load from localStorage as fallback
                 try {
                     const saved = localStorage.getItem('inventoryData');
                     if (saved) {
