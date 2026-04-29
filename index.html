@@ -3,1247 +3,699 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>דשבורד ניהול מלאי - מפעל משלוחים</title>
+    <title>FlowTrack – ניהול מלאי</title>
+
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+        // ============================================================
+        //  🔧 הגדרות Firebase – החלף בפרטים שלך אחרי יצירת הפרויקט
+        // ============================================================
+        const firebaseConfig = {
+            apiKey: "REPLACE_API_KEY",
+            authDomain: "REPLACE_AUTH_DOMAIN",
+            projectId: "REPLACE_PROJECT_ID",
+            storageBucket: "REPLACE_STORAGE_BUCKET",
+            messagingSenderId: "REPLACE_MESSAGING_SENDER_ID",
+            appId: "REPLACE_APP_ID"
+        };
+        // ============================================================
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const COLLECTION = 'inventory';
+
+        window._db = db;
+        window._collection = collection;
+        window._addDoc = addDoc;
+        window._updateDoc = updateDoc;
+        window._deleteDoc = deleteDoc;
+        window._doc = doc;
+        window._onSnapshot = onSnapshot;
+        window._COLLECTION = COLLECTION;
+
+        // Start real-time listener as soon as Firebase is ready
+        window.addEventListener('load', () => {
+            if (typeof window.startFirebaseListener === 'function') {
+                window.startFirebaseListener();
+            } else {
+                window._firebaseReady = true;
+            }
+        });
+    </script>
+
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
             background: #f0f4f8;
             min-height: 100vh;
-            padding: 0;
             color: #1a202c;
         }
 
-        .container {
-            max-width: 100%;
-            margin: 0;
-            padding: 0;
-        }
-
+        /* ── Header ── */
         .header {
-            background: #ffffff;
+            background: #fff;
             border-bottom: 1px solid #e2e8f0;
             padding: 20px 48px;
-            margin-bottom: 0;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+            box-shadow: 0 1px 3px rgba(0,0,0,.05);
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-
-        .header-title {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
+        .header-title { display: flex; align-items: center; gap: 20px; }
         .company-logo {
-            background: #0369a1;
-            color: white;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 1.1rem;
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            background: #0369a1; color: #fff;
+            padding: 10px 20px; border-radius: 6px;
+            font-size: 1.1rem; font-weight: 600;
         }
+        .header h1 { font-size: 1.75rem; color: #0c4a6e; font-weight: 600; }
+        .header-subtitle { color: #64748b; font-size: .95rem; margin-top: 6px; }
 
-        .header h1 {
-            font-size: 1.75rem;
-            color: #0c4a6e;
-            font-weight: 600;
-            letter-spacing: -0.5px;
-        }
+        .header-actions { display: flex; gap: 15px; align-items: center; }
 
-        .header-subtitle {
-            color: #64748b;
-            font-size: 0.95rem;
-            margin-top: 6px;
-            font-weight: 500;
-        }
-
+        /* Sync badge */
         .sync-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: #ecfdf5;
-            border-radius: 6px;
-            font-size: 13px;
-            font-weight: 600;
-            color: #059669;
+            display: flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-radius: 6px;
+            font-size: 13px; font-weight: 600;
+            background: #ecfdf5; color: #059669;
+            transition: all .3s;
+        }
+        .sync-status.syncing  { background: #fef3c7; color: #b45309; }
+        .sync-status.error    { background: #fee2e2; color: #dc2626; }
+        .sync-status.offline  { background: #f1f5f9; color: #64748b; }
+
+        .sync-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #059669; transition: background .3s;
+        }
+        .sync-status.syncing .sync-dot { background: #b45309; animation: blink 1s infinite; }
+        .sync-status.error   .sync-dot { background: #dc2626; }
+        .sync-status.offline .sync-dot { background: #94a3b8; }
+
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+        /* ── Setup banner ── */
+        #setupBanner {
+            background: #1e40af; color: #fff;
+            padding: 20px 48px; display: none;
+            align-items: flex-start; gap: 20px;
+        }
+        #setupBanner.show { display: flex; }
+        #setupBanner h3 { margin-bottom: 10px; font-size: 1.1rem; }
+        #setupBanner ol { padding-right: 20px; line-height: 2; }
+        #setupBanner a { color: #93c5fd; }
+        #setupBanner code {
+            background: rgba(255,255,255,.15);
+            padding: 2px 8px; border-radius: 4px;
+            font-size: 13px; word-break: break-all;
+        }
+        .setup-close {
+            background: rgba(255,255,255,.2); border: none; color: #fff;
+            padding: 6px 14px; border-radius: 4px; cursor: pointer;
+            font-size: 13px; margin-top: 8px; white-space: nowrap;
         }
 
-        .sync-status.syncing {
-            background: #fef3c7;
-            color: #b45309;
-        }
-
-        .sync-status.error {
-            background: #fee2e2;
-            color: #dc2626;
-        }
-
-        .sync-indicator {
-            display: inline-block;
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #059669;
-        }
-
-        .sync-indicator.syncing {
-            background: #b45309;
-            animation: pulse 1s infinite;
-        }
-
-        .sync-indicator.error {
-            background: #dc2626;
-        }
-
+        /* ── Datetime banner ── */
         .datetime-banner {
-            background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
-            color: white;
-            padding: 12px 48px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 14px;
-            font-weight: 500;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg,#0891b2,#0e7490);
+            color: #fff; padding: 12px 48px;
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 14px; font-weight: 500;
         }
+        .datetime-item { display: flex; align-items: center; gap: 8px; }
 
-        .datetime-item {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .datetime-item svg {
-            width: 18px;
-            height: 18px;
-            fill: white;
-        }
-
-        .btn {
-            background: #0369a1;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-        }
-
-        .btn:hover {
-            background: #075985;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
-        .btn:disabled {
-            background: #cbd5e0;
-            cursor: not-allowed;
-            transform: none;
-        }
-
-        .btn-success {
-            background: #0891b2;
-        }
-
-        .btn-success:hover {
-            background: #0e7490;
-        }
-
-        .btn-danger {
-            background: #dc2626;
-        }
-
-        .btn-danger:hover {
-            background: #b91c1c;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .btn-contact {
-            background: #0891b2;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 6px;
-            font-size: 14px;
-            font-weight: 500;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .btn-contact:hover {
-            background: #0e7490;
-            transform: translateY(-1px);
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
-
+        /* ── Alert banner ── */
         .alert-banner {
-            background: #dc2626;
-            color: white;
-            padding: 16px 48px;
-            margin-bottom: 0;
-            display: none;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-            animation: pulse 2s infinite;
+            background: #dc2626; color: #fff;
+            padding: 16px 48px; display: none;
+            align-items: center; justify-content: space-between; gap: 12px;
+            animation: blink 2s infinite;
         }
-
-        .alert-banner.show {
-            display: flex;
-        }
-
-        .alert-content {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
+        .alert-banner.show { display: flex; }
         .btn-view-critical {
-            background: white;
-            color: #dc2626;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            white-space: nowrap;
+            background: #fff; color: #dc2626; border: none;
+            padding: 8px 16px; border-radius: 4px;
+            font-size: 13px; font-weight: 600; cursor: pointer;
         }
+        .btn-view-critical:hover { background: #fee2e2; }
 
-        .btn-view-critical:hover {
-            background: #fee2e2;
-            transform: translateY(-1px);
-        }
-
-        .critical-items-modal {
-            display: none;
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.5);
-            z-index: 2000;
-            align-items: center;
-            justify-content: center;
-        }
-
-        .critical-items-modal.show {
-            display: flex;
-        }
-
-        .modal-content {
-            background: white;
-            border-radius: 12px;
-            padding: 32px;
-            max-width: 800px;
-            width: 90%;
-            max-height: 80vh;
-            overflow-y: auto;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-            padding-bottom: 16px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
-        .modal-header h2 {
-            color: #dc2626;
-            font-size: 1.5rem;
-            margin: 0;
-        }
-
-        .modal-close {
-            background: transparent;
-            border: none;
-            font-size: 28px;
-            color: #64748b;
-            cursor: pointer;
-            padding: 0;
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s ease;
-        }
-
-        .modal-close:hover {
-            color: #dc2626;
-            transform: scale(1.1);
-        }
-
-        .critical-items-list {
-            display: flex;
-            flex-direction: column;
-            gap: 16px;
-        }
-
-        .critical-item-card {
-            background: #fee2e2;
-            border: 2px solid #dc2626;
-            border-radius: 8px;
-            padding: 16px;
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr 1fr;
-            gap: 16px;
-            align-items: center;
-        }
-
-        .critical-item-info {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .critical-item-name {
-            font-weight: 700;
-            color: #0f172a;
-            font-size: 16px;
-            margin-bottom: 4px;
-        }
-
-        .critical-item-sku {
-            font-size: 13px;
-            color: #64748b;
-        }
-
-        .critical-item-stat {
-            text-align: center;
-        }
-
-        .critical-item-label {
-            font-size: 11px;
-            color: #64748b;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 4px;
-        }
-
-        .critical-item-value {
-            font-size: 18px;
-            font-weight: 700;
-            color: #dc2626;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.8; }
-        }
-
+        /* ── Stats ── */
         .stats-row {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 0;
-            margin-bottom: 0;
-            background: white;
-            border-bottom: 1px solid #e2e8f0;
+            display: grid; grid-template-columns: repeat(4,1fr);
+            background: #fff; border-bottom: 1px solid #e2e8f0;
         }
+        .stat-box { padding: 32px; text-align: center; border-right: 1px solid #e2e8f0; }
+        .stat-box:last-child { border-right: none; }
+        .stat-number { font-size: 2.5rem; font-weight: 600; color: #0369a1; }
+        .stat-label { color: #64748b; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: .5px; }
 
-        .stat-box {
-            background: white;
-            padding: 32px;
-            text-align: center;
-            border-right: 1px solid #e2e8f0;
-        }
-
-        .stat-box:last-child {
-            border-right: none;
-        }
-
-        .stat-number {
-            font-size: 2.5rem;
-            font-weight: 600;
-            color: #0369a1;
-            letter-spacing: -1px;
-        }
-
-        .stat-label {
-            color: #64748b;
-            font-size: 13px;
-            margin-top: 8px;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .add-row-form {
-            background: #f8fafc;
-            padding: 24px 48px;
-            border-bottom: 1px solid #e2e8f0;
-        }
-
+        /* ── Add form ── */
+        .add-row-form { background: #f8fafc; padding: 24px 48px; border-bottom: 1px solid #e2e8f0; }
         .form-row {
             display: grid;
             grid-template-columns: 1fr 2fr 1fr 1fr 100px;
-            gap: 12px;
-            align-items: end;
+            gap: 12px; align-items: end;
         }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .form-group label {
-            font-size: 12px;
-            font-weight: 600;
-            color: #64748b;
-            margin-bottom: 6px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
+        .form-group { display: flex; flex-direction: column; }
+        .form-group label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
         .form-group input {
-            height: 38px;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-            font-family: inherit;
-            background: white;
+            height: 38px; padding: 8px 12px;
+            border: 1px solid #e2e8f0; border-radius: 4px;
+            font-size: 14px; font-family: inherit; background: #fff;
+            transition: border .2s;
         }
+        .form-group input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 3px rgba(8,145,178,.1); }
 
-        .form-group input:focus {
-            outline: none;
-            border-color: #0891b2;
-            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
+        /* ── Buttons ── */
+        .btn {
+            background: #0369a1; color: #fff; border: none;
+            padding: 10px 20px; border-radius: 6px;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            transition: all .2s;
         }
-
-        .table-card {
-            background: white;
-            padding: 48px;
-            overflow: auto;
+        .btn:hover { background: #075985; transform: translateY(-1px); }
+        .btn:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; }
+        .btn-success { background: #0891b2; }
+        .btn-success:hover { background: #0e7490; }
+        .btn-contact {
+            background: #0891b2; color: #fff; border: none;
+            padding: 10px 20px; border-radius: 6px;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+            display: flex; align-items: center; gap: 8px;
         }
+        .btn-contact:hover { background: #0e7490; }
 
-        .inventory-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: white;
-        }
-
-        .inventory-table thead {
-            background: #f8fafc;
-            border-bottom: 2px solid #e2e8f0;
-        }
-
+        /* ── Table ── */
+        .table-card { background: #fff; padding: 48px; overflow: auto; }
+        .inventory-table { width: 100%; border-collapse: collapse; }
+        .inventory-table thead { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
         .inventory-table th {
-            padding: 16px 20px;
-            text-align: center;
-            font-weight: 600;
-            font-size: 13px;
-            white-space: nowrap;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            color: #64748b;
+            padding: 16px 20px; text-align: center;
+            font-weight: 600; font-size: 13px; text-transform: uppercase;
+            letter-spacing: .5px; color: #64748b; white-space: nowrap;
         }
-
-        .inventory-table th.sortable {
-            cursor: pointer;
-            user-select: none;
-            transition: background 0.2s ease;
-        }
-
-        .inventory-table th.sortable:hover {
-            background: #e2e8f0;
-        }
-
-        .sort-icon {
-            display: inline-block;
-            margin-right: 8px;
-            font-size: 16px;
-            color: #94a3b8;
-            transition: color 0.2s ease;
-        }
-
-        .sort-icon.active {
-            color: #0891b2;
-        }
-
-        .inventory-table tbody tr {
-            border-bottom: 1px solid #e2e8f0;
-            transition: all 0.15s ease;
-            height: 60px;
-        }
-
-        .inventory-table tbody tr:hover {
-            background: #f8fafc;
-        }
-
-        .inventory-table td {
-            padding: 12px 15px;
-            text-align: center;
-            vertical-align: middle;
-        }
-
-        .inventory-table input[type="text"] {
-            width: 100%;
-            height: 38px;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 14px;
-            transition: all 0.2s ease;
-            font-family: inherit;
-            background: white;
-        }
-
-        .inventory-table input[type="text"]:focus {
-            outline: none;
-            border-color: #0891b2;
-            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
-        }
-
+        .inventory-table th.sortable { cursor: pointer; }
+        .inventory-table th.sortable:hover { background: #e2e8f0; }
+        .inventory-table tbody tr { border-bottom: 1px solid #e2e8f0; height: 60px; transition: background .15s; }
+        .inventory-table tbody tr:hover { background: #f8fafc; }
+        .inventory-table td { padding: 12px 15px; text-align: center; vertical-align: middle; }
+        .inventory-table input[type="text"],
         .inventory-table input[type="number"] {
-            width: 100%;
-            height: 38px;
-            padding: 8px 12px;
-            border: 1px solid #e2e8f0;
-            border-radius: 4px;
-            font-size: 14px;
+            width: 100%; height: 38px; padding: 8px 12px;
+            border: 1px solid #e2e8f0; border-radius: 4px;
+            font-size: 14px; font-family: inherit; background: #fff;
             text-align: center;
-            transition: all 0.2s ease;
-            font-family: inherit;
-            background: white;
         }
-
-        .inventory-table input[type="number"]:focus {
-            outline: none;
-            border-color: #0891b2;
-            box-shadow: 0 0 0 3px rgba(8, 145, 178, 0.1);
-        }
+        .inventory-table input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 3px rgba(8,145,178,.1); }
 
         .status-badge {
-            display: inline-block;
-            padding: 6px 16px;
-            border-radius: 4px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
+            display: inline-block; padding: 6px 16px; border-radius: 4px;
+            font-size: 12px; font-weight: 600; text-transform: uppercase;
         }
-
-        .availability-text {
-            font-size: 14px;
-            font-weight: 600;
-            color: #334155;
-        }
-
-        .status-critical {
-            background: #dc2626;
-            color: white;
-        }
-
-        .status-warning {
-            background: #f59e0b;
-            color: white;
-        }
-
-        .status-good {
-            background: #059669;
-            color: white;
-        }
-
-        .reorder-value {
-            font-size: 16px;
-            font-weight: 700;
-            padding: 8px 16px;
-            border-radius: 4px;
-            display: inline-block;
-            min-width: 40px;
-        }
+        .status-critical { background: #dc2626; color: #fff; }
+        .status-warning  { background: #f59e0b; color: #fff; }
+        .status-good     { background: #059669; color: #fff; }
 
         .delete-btn {
-            background: transparent;
-            color: #dc2626;
-            border: none;
-            padding: 6px 12px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 20px;
-            font-weight: 500;
-            transition: all 0.2s ease;
+            background: transparent; color: #dc2626; border: none;
+            padding: 6px 12px; border-radius: 4px;
+            font-size: 20px; cursor: pointer; transition: all .2s;
         }
+        .delete-btn:hover { background: #fee2e2; transform: scale(1.1); }
 
-        .delete-btn:hover {
-            background: #fee2e2;
-            transform: scale(1.1);
+        /* ── Modal ── */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0;
+            background: rgba(0,0,0,.5); z-index: 2000;
+            align-items: center; justify-content: center;
         }
+        .modal-overlay.show { display: flex; }
+        .modal-content {
+            background: #fff; border-radius: 12px; padding: 32px;
+            max-width: 800px; width: 90%; max-height: 80vh;
+            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3);
+        }
+        .modal-header {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 24px; padding-bottom: 16px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        .modal-header h2 { color: #dc2626; font-size: 1.5rem; }
+        .modal-close {
+            background: transparent; border: none; font-size: 28px;
+            color: #64748b; cursor: pointer; width: 32px; height: 32px;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .modal-close:hover { color: #dc2626; }
+        .critical-item-card {
+            background: #fee2e2; border: 2px solid #dc2626; border-radius: 8px;
+            padding: 16px; margin-bottom: 16px;
+            display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px;
+        }
+        .critical-item-name { font-weight: 700; color: #0f172a; font-size: 16px; }
+        .critical-item-sku  { font-size: 13px; color: #64748b; }
+        .critical-item-stat { text-align: center; }
+        .critical-item-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .critical-item-value { font-size: 18px; font-weight: 700; color: #dc2626; }
 
+        /* ── Notification ── */
         .notification {
-            position: fixed;
-            bottom: 24px;
-            left: 24px;
-            background: #0891b2;
-            color: white;
-            padding: 16px 24px;
-            border-radius: 6px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
-            transform: translateY(200px);
-            transition: all 0.3s ease;
-            z-index: 1000;
-            font-weight: 500;
-            font-size: 14px;
+            position: fixed; bottom: 24px; left: 24px;
+            background: #0891b2; color: #fff;
+            padding: 16px 24px; border-radius: 6px;
+            box-shadow: 0 10px 25px rgba(0,0,0,.2);
+            transform: translateY(200px); transition: all .3s;
+            z-index: 1000; font-weight: 500; font-size: 14px;
         }
-
-        .notification.show {
-            transform: translateY(0);
-        }
-
-        .notification.error {
-            background: #dc2626;
-        }
+        .notification.show { transform: translateY(0); }
+        .notification.error { background: #dc2626; }
 
         @media (max-width: 1200px) {
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-row {
-                grid-template-columns: repeat(2, 1fr);
-            }
-        }
-
-        .icon {
-            width: 24px;
-            height: 24px;
-            fill: currentColor;
+            .form-row { grid-template-columns: 1fr; }
+            .stats-row { grid-template-columns: repeat(2,1fr); }
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <!-- Header -->
-        <div class="header">
-            <div class="header-title">
-                <div class="company-logo">🏭 אחזקת משלוחים</div>
-                <div>
-                    <h1>FlowTrack – מערכת חכמה לניהול מלאי, בקרה ויעילות תפעולית</h1>
-                    <p class="header-subtitle">בקרה מלאה על המלאי, התרעות חכמות וניתוח נתונים</p>
-                </div>
-            </div>
-            <div class="header-actions">
-                <div class="sync-status" id="syncStatus">
-                    <span class="sync-indicator"></span>
-                    <span>מסונכרן</span>
-                </div>
-                <button class="btn-contact" onclick="contactManager()">📧 צור קשר - יחיאל</button>
-                <button class="btn btn-success" onclick="exportToExcel()">📊 ייצא לאקסל</button>
-            </div>
-        </div>
 
-        <!-- DateTime Banner -->
-        <div class="datetime-banner">
-            <div class="datetime-item">
-                <svg viewBox="0 0 24 24">
-                    <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>
-                </svg>
-                <span id="currentDate">טוען תאריך...</span>
-            </div>
-            <div class="datetime-item">
-                <svg viewBox="0 0 24 24">
-                    <path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/>
-                </svg>
-                <span id="currentTime">טוען שעה...</span>
-            </div>
-        </div>
-
-        <!-- Alert Banner -->
-        <div class="alert-banner" id="alertBanner">
-            <div class="alert-content">
-                <svg class="icon" viewBox="0 0 24 24">
-                    <path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/>
-                </svg>
-                <span id="alertText"></span>
-            </div>
-            <button class="btn-view-critical" onclick="showCriticalItems()">📋 הצג רשימה</button>
-        </div>
-
-        <!-- Statistics -->
-        <div class="stats-row">
-            <div class="stat-box">
-                <div class="stat-number" id="totalItems">0</div>
-                <div class="stat-label">סך פריטים</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="criticalItems">0</div>
-                <div class="stat-label">פריטים למשיכה</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="warningItems">0</div>
-                <div class="stat-label">פריטים באזהרה</div>
-            </div>
-            <div class="stat-box">
-                <div class="stat-number" id="totalValue">0</div>
-                <div class="stat-label">יחידות במלאי</div>
-            </div>
-        </div>
-
-        <!-- Add New Item Form -->
-        <div class="add-row-form">
-            <form id="addItemForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>מקט</label>
-                        <input type="text" id="itemSku" required placeholder="לדוגמה: SKU-001">
-                    </div>
-                    <div class="form-group">
-                        <label>שם הפריט</label>
-                        <input type="text" id="itemName" required placeholder="לדוגמה: ברגים">
-                    </div>
-                    <div class="form-group">
-                        <label>מלאי במחסן</label>
-                        <input type="number" id="currentStock" required min="0" placeholder="20">
-                    </div>
-                    <div class="form-group">
-                        <label>מלאי מינימלי</label>
-                        <input type="number" id="minStock" required min="0" placeholder="50">
-                    </div>
-                    <div class="form-group">
-                        <label>&nbsp;</label>
-                        <button type="submit" class="btn btn-success" id="addBtn">➕ הוסף</button>
-                    </div>
-                </div>
-            </form>
-        </div>
-
-        <!-- Inventory Table -->
-        <div class="table-card">
-            <table class="inventory-table">
-                <thead>
-                    <tr>
-                        <th style="width: 15%;">מקט</th>
-                        <th class="sortable" style="width: 25%;" onclick="sortByName()">
-                            <span class="sort-icon" id="sortIcon">⇅</span>
-                            שם הפריט
-                        </th>
-                        <th style="width: 15%;">מלאי במחסן</th>
-                        <th style="width: 15%;">מלאי מינימלי</th>
-                        <th style="width: 12%;">כמות למשיכה</th>
-                        <th style="width: 12%;">זמין במחסן ראשי</th>
-                        <th style="width: 10%;">פעולות</th>
-                    </tr>
-                </thead>
-                <tbody id="inventoryTableBody">
-                    <!-- Rows will be added dynamically -->
-                </tbody>
-            </table>
+<!-- Header -->
+<div class="header">
+    <div class="header-title">
+        <div class="company-logo">🏭 אחזקת משלוחים</div>
+        <div>
+            <h1>FlowTrack – מערכת חכמה לניהול מלאי</h1>
+            <p class="header-subtitle">בקרה מלאה על המלאי, התרעות חכמות וניתוח נתונים</p>
         </div>
     </div>
-
-    <div class="notification" id="notification">
-        <span id="notificationText"></span>
-    </div>
-
-    <!-- Critical Items Modal -->
-    <div class="critical-items-modal" id="criticalModal" onclick="closeCriticalModal(event)">
-        <div class="modal-content" onclick="event.stopPropagation()">
-            <div class="modal-header">
-                <h2>🚨 פריטים הדורשים הזמנה מיידית</h2>
-                <button class="modal-close" onclick="closeCriticalModal()">&times;</button>
-            </div>
-            <div class="critical-items-list" id="criticalItemsList"></div>
+    <div class="header-actions">
+        <div class="sync-status" id="syncStatus">
+            <span class="sync-dot"></span>
+            <span id="syncText">מתחבר...</span>
         </div>
+        <button class="btn-contact" onclick="contactManager()">📧 צור קשר – יחיאל</button>
+        <button class="btn btn-success" onclick="exportToExcel()">📊 ייצא לאקסל</button>
     </div>
+</div>
 
-    <script>
-        const API_URL = '/api/inventory';
-        let inventory = [];
-        let sortOrder = 'none'; // 'none', 'asc', 'desc'
-        let isSyncing = false;
+<!-- Setup instructions banner -->
+<div id="setupBanner" class="show">
+    <div style="flex:1">
+        <h3>⚙️ הגדרה חד-פעמית נדרשת – Firebase (חינמי, 5 דקות)</h3>
+        <ol>
+            <li>היכנס ל-<a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> עם חשבון Google</li>
+            <li>לחץ <strong>Create a project</strong> → תן שם → המשך</li>
+            <li>בתפריט שמאל: <strong>Build → Firestore Database → Create database</strong> → בחר <em>Start in test mode</em> → Next → Enable</li>
+            <li>בתפריט שמאל: <strong>Project settings</strong> (גלגל שיניים) → <strong>Your apps → &lt;/&gt; Web</strong> → רשום אפליקציה</li>
+            <li>העתק את האובייקט <code>firebaseConfig</code> שמקבל ופתח את ה-HTML בעורך טקסט</li>
+            <li>מצא את <code>const firebaseConfig = { ... }</code> בראש הקובץ והחלף בנתונים שלך</li>
+            <li>שמור ופתח מחדש – הסנכרון יעבוד מכל מכשיר ומכל מקום! 🎉</li>
+        </ol>
+        <button class="setup-close" onclick="document.getElementById('setupBanner').classList.remove('show')">הבנתי, סגור</button>
+    </div>
+</div>
 
-        // Initialize system
-        function initSystem() {
-            loadData();
-            updateDateTime();
-            setInterval(updateDateTime, 1000);
-            setInterval(syncData, 5000); // Sync every 5 seconds
+<!-- DateTime banner -->
+<div class="datetime-banner">
+    <div class="datetime-item">
+        <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+        <span id="currentDate">טוען...</span>
+    </div>
+    <div class="datetime-item">
+        <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
+        <span id="currentTime">טוען...</span>
+    </div>
+</div>
+
+<!-- Alert banner -->
+<div class="alert-banner" id="alertBanner">
+    <div style="display:flex;align-items:center;gap:12px">
+        <svg width="24" height="24" fill="white" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+        <span id="alertText"></span>
+    </div>
+    <button class="btn-view-critical" onclick="showCriticalItems()">📋 הצג רשימה</button>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+    <div class="stat-box"><div class="stat-number" id="totalItems">0</div><div class="stat-label">סך פריטים</div></div>
+    <div class="stat-box"><div class="stat-number" id="criticalItems">0</div><div class="stat-label">פריטים למשיכה</div></div>
+    <div class="stat-box"><div class="stat-number" id="warningItems">0</div><div class="stat-label">פריטים באזהרה</div></div>
+    <div class="stat-box"><div class="stat-number" id="totalValue">0</div><div class="stat-label">יחידות במלאי</div></div>
+</div>
+
+<!-- Add form -->
+<div class="add-row-form">
+    <form id="addItemForm">
+        <div class="form-row">
+            <div class="form-group"><label>מקט</label><input type="text" id="itemSku" required placeholder="SKU-001"></div>
+            <div class="form-group"><label>שם הפריט</label><input type="text" id="itemName" required placeholder="ברגים M8"></div>
+            <div class="form-group"><label>מלאי במחסן</label><input type="number" id="currentStock" required min="0" placeholder="20"></div>
+            <div class="form-group"><label>מלאי מינימלי</label><input type="number" id="minStock" required min="0" placeholder="50"></div>
+            <div class="form-group"><label>&nbsp;</label><button type="submit" class="btn btn-success" id="addBtn">➕ הוסף</button></div>
+        </div>
+    </form>
+</div>
+
+<!-- Table -->
+<div class="table-card">
+    <table class="inventory-table">
+        <thead>
+            <tr>
+                <th style="width:15%">מקט</th>
+                <th class="sortable" style="width:25%" onclick="sortByName()"><span id="sortIcon">⇅</span> שם הפריט</th>
+                <th style="width:15%">מלאי במחסן</th>
+                <th style="width:15%">מלאי מינימלי</th>
+                <th style="width:12%">כמות למשיכה</th>
+                <th style="width:12%">זמין במחסן ראשי</th>
+                <th style="width:10%">פעולות</th>
+            </tr>
+        </thead>
+        <tbody id="inventoryTableBody"></tbody>
+    </table>
+</div>
+
+<!-- Notification -->
+<div class="notification" id="notification"><span id="notificationText"></span></div>
+
+<!-- Critical modal -->
+<div class="modal-overlay" id="criticalModal" onclick="closeCriticalModal(event)">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="modal-header">
+            <h2>🚨 פריטים הדורשים הזמנה מיידית</h2>
+            <button class="modal-close" onclick="closeCriticalModal()">&times;</button>
+        </div>
+        <div id="criticalItemsList"></div>
+    </div>
+</div>
+
+<script>
+    // ── State ──
+    let inventory = [];
+    let sortOrder = 'none';
+    let unsubscribe = null;
+    let firebaseConfigured = false;
+
+    // ── Detect if Firebase config was filled in ──
+    function checkFirebaseConfig() {
+        // The module script sets window._db if Firebase initialized
+        return !!window._db;
+    }
+
+    // ── Sync status helpers ──
+    function setSyncStatus(state, text) {
+        const el = document.getElementById('syncStatus');
+        el.className = 'sync-status' + (state ? ' ' + state : '');
+        document.getElementById('syncText').textContent = text;
+    }
+
+    // ── Real-time listener ──
+    window.startFirebaseListener = function() {
+        if (!window._db) {
+            setSyncStatus('offline', 'לא מוגדר');
+            document.getElementById('setupBanner').classList.add('show');
+            // Fallback to localStorage
+            loadFromLocalStorage();
+            return;
         }
 
-        // Update sync status
-        function updateSyncStatus(status) {
-            const syncEl = document.getElementById('syncStatus');
-            const indicator = syncEl.querySelector('.sync-indicator');
-            
-            syncEl.className = 'sync-status';
-            indicator.className = 'sync-indicator';
-            
-            if (status === 'syncing') {
-                syncEl.classList.add('syncing');
-                indicator.classList.add('syncing');
-                syncEl.innerHTML = '<span class="sync-indicator syncing"></span><span>מסנכרן...</span>';
-            } else if (status === 'error') {
-                syncEl.classList.add('error');
-                indicator.classList.add('error');
-                syncEl.innerHTML = '<span class="sync-indicator error"></span><span>שגיאת סנכרון</span>';
-            } else {
-                syncEl.innerHTML = '<span class="sync-indicator"></span><span>מסונכרן</span>';
-            }
-        }
+        document.getElementById('setupBanner').classList.remove('show');
+        firebaseConfigured = true;
+        setSyncStatus('syncing', 'מתחבר...');
 
-        // Sync data with server
-        async function syncData() {
-            if (isSyncing || inventory.length === 0) return;
-            
-            try {
-                updateSyncStatus('syncing');
-                const response = await fetch(API_URL, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ inventory })
-                });
-                
-                if (response.ok) {
-                    updateSyncStatus('syncing');
-                    setTimeout(() => updateSyncStatus('success'), 1000);
-                } else {
-                    updateSyncStatus('error');
-                }
-            } catch (e) {
-                console.error('Sync error:', e);
-                updateSyncStatus('error');
-            }
-        }
+        const colRef = window._collection(window._db, window._COLLECTION);
 
-        // Update date and time
-        function updateDateTime() {
-            const now = new Date();
-            const dateOptions = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
-            const dateStr = now.toLocaleDateString('he-IL', dateOptions);
-            document.getElementById('currentDate').textContent = dateStr;
-            
-            const timeStr = now.toLocaleTimeString('he-IL', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            document.getElementById('currentTime').textContent = timeStr;
-        }
-
-        // Sort by name function
-        function sortByName() {
-            const sortIcon = document.getElementById('sortIcon');
-            
-            if (sortOrder === 'none' || sortOrder === 'desc') {
-                inventory.sort((a, b) => a.name.localeCompare(b.name, 'he'));
-                sortOrder = 'asc';
-                sortIcon.textContent = '↓';
-                sortIcon.classList.add('active');
-                showNotification('ממוין א-ת');
-            } else {
-                inventory.sort((a, b) => b.name.localeCompare(a.name, 'he'));
-                sortOrder = 'desc';
-                sortIcon.textContent = '↑';
-                sortIcon.classList.add('active');
-                showNotification('ממוין ת-א');
-            }
-            
-            renderTable();
-        }
-
-        // Add new item
-        document.getElementById('addItemForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const item = {
-                id: Date.now(),
-                sku: document.getElementById('itemSku').value,
-                name: document.getElementById('itemName').value,
-                currentStock: parseInt(document.getElementById('currentStock').value),
-                minStock: parseInt(document.getElementById('minStock').value),
-                lastUpdated: new Date().toISOString()
-            };
-
-            const addBtn = document.getElementById('addBtn');
-            addBtn.disabled = true;
-
-            try {
-                const response = await fetch(API_URL + '/add', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(item)
-                });
-
-                if (response.ok) {
-                    inventory.push(item);
-                    sortOrder = 'none';
-                    document.getElementById('sortIcon').textContent = '⇅';
-                    document.getElementById('sortIcon').classList.remove('active');
-                    renderTable();
-                    updateStats();
-                    checkAlerts();
-                    this.reset();
-                    showNotification('פריט נוסף בהצלחה!');
-                } else {
-                    showNotification('שגיאה בהוספת הפריט', 'error');
-                }
-            } catch (e) {
-                console.error('Error adding item:', e);
-                showNotification('שגיאה בחיבור לשרת', 'error');
-            } finally {
-                addBtn.disabled = false;
-            }
-        });
-
-        // Render table
-        function renderTable() {
-            const tbody = document.getElementById('inventoryTableBody');
-            
-            if (inventory.length === 0) {
-                tbody.innerHTML = `
-                    <tr>
-                        <td colspan="7" style="text-align: center; padding: 40px; color: #718096;">
-                            <svg style="width: 48px; height: 48px; margin-bottom: 12px; fill: #cbd5e0;" viewBox="0 0 24 24">
-                                <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14z"/>
-                            </svg>
-                            <div style="font-size: 18px; font-weight: 600;">אין פריטים במלאי</div>
-                            <div>הוסף פריט ראשון באמצעות הטופס למעלה</div>
-                        </td>
-                    </tr>
-                `;
-                return;
-            }
-
-            tbody.innerHTML = inventory.map(item => {
-                const status = getStatus(item);
-                
-                return `
-                    <tr>
-                        <td>
-                            <input type="text" value="${escapeHtml(item.sku)}" 
-                                   onchange="updateItem(${item.id}, 'sku', this.value)"
-                                   style="font-weight: 600; color: #0369a1;">
-                        </td>
-                        <td>
-                            <input type="text" value="${escapeHtml(item.name)}" 
-                                   onchange="updateItem(${item.id}, 'name', this.value)">
-                        </td>
-                        <td>
-                            <input type="number" value="${item.currentStock}" min="0"
-                                   onchange="updateItem(${item.id}, 'currentStock', parseInt(this.value))"
-                                   style="font-weight: bold; font-size: 16px; color: #0f172a;">
-                        </td>
-                        <td>
-                            <input type="number" value="${item.minStock}" min="0"
-                                   onchange="updateItem(${item.id}, 'minStock', parseInt(this.value))"
-                                   style="font-weight: 600; font-size: 15px; color: #334155;">
-                        </td>
-                        <td>
-                            <span class="reorder-value status-badge ${status.reorderClass}">
-                                ${status.reorderAmount}
-                            </span>
-                        </td>
-                        <td style="text-align: center;">
-                            <span style="font-size: 14px; font-weight: 600; color: #334155;">
-                                ${item.available || 'כן/לא'}
-                            </span>
-                        </td>
-                        <td>
-                            <button class="delete-btn" onclick="deleteItem(${item.id})">🗑️</button>
-                        </td>
-                    </tr>
-                `;
-            }).join('');
-        }
-
-        // Get status
-        function getStatus(item) {
-            const difference = item.minStock - item.currentStock;
-            const threshold = item.minStock * 1.05;
-            
-            let statusResult = {};
-            
-            if (item.currentStock < item.minStock) {
-                statusResult.reorderClass = 'status-critical';
-                statusResult.reorderAmount = difference;
-            } else if (item.currentStock <= threshold) {
-                statusResult.reorderClass = 'status-warning';
-                statusResult.reorderAmount = 0;
-            } else {
-                statusResult.reorderClass = 'status-good';
-                statusResult.reorderAmount = 0;
-            }
-            
-            return statusResult;
-        }
-
-        // Update item
-        async function updateItem(id, field, value) {
-            const item = inventory.find(i => i.id === id);
-            if (item) {
-                item[field] = value;
-                item.lastUpdated = new Date().toISOString();
-                
-                try {
-                    const response = await fetch(`${API_URL}/${id}`, {
-                        method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ [field]: value })
-                    });
-                    
-                    if (response.ok) {
-                        renderTable();
-                        updateStats();
-                        checkAlerts();
-                        showNotification('עודכן בהצלחה!');
-                    }
-                } catch (e) {
-                    console.error('Error updating item:', e);
-                    showNotification('שגיאה בעדכון', 'error');
-                }
-            }
-        }
-
-        // Delete item
-        async function deleteItem(id) {
-            if (confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) {
-                try {
-                    const response = await fetch(`${API_URL}/${id}`, {
-                        method: 'DELETE'
-                    });
-                    
-                    if (response.ok) {
-                        inventory = inventory.filter(i => i.id !== id);
-                        renderTable();
-                        updateStats();
-                        checkAlerts();
-                        showNotification('הפריט נמחק', 'error');
-                    }
-                } catch (e) {
-                    console.error('Error deleting item:', e);
-                    showNotification('שגיאה במחיקה', 'error');
-                }
-            }
-        }
-
-        // Update statistics
-        function updateStats() {
-            document.getElementById('totalItems').textContent = inventory.length;
-            
-            let critical = 0;
-            let warning = 0;
-            let totalValue = 0;
-            
-            inventory.forEach(item => {
-                const threshold = item.minStock * 1.05;
-                
-                if (item.currentStock < item.minStock) {
-                    critical++;
-                } else if (item.currentStock <= threshold) {
-                    warning++;
-                }
-                totalValue += item.currentStock;
-            });
-            
-            document.getElementById('criticalItems').textContent = critical;
-            document.getElementById('warningItems').textContent = warning;
-            document.getElementById('totalValue').textContent = totalValue;
-        }
-
-        // Check alerts
-        function checkAlerts() {
-            const alertBanner = document.getElementById('alertBanner');
-            const alertText = document.getElementById('alertText');
-            
-            const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
-            
-            if (criticalItems.length > 0) {
-                alertText.textContent = `⚠️ התראה: ${criticalItems.length} פריטים חסרים ודורשים הזמנה מיידית!`;
-                alertBanner.classList.add('show');
-            } else {
-                alertBanner.classList.remove('show');
-            }
-        }
-
-        // Show critical items modal
-        function showCriticalItems() {
-            const criticalItems = inventory.filter(item => item.currentStock < item.minStock);
-            const modal = document.getElementById('criticalModal');
-            const list = document.getElementById('criticalItemsList');
-            
-            if (criticalItems.length === 0) {
-                list.innerHTML = '<div style="text-align: center; padding: 40px; color: #64748b;">אין פריטים חסרים כרגע 🎉</div>';
-            } else {
-                list.innerHTML = criticalItems.map(item => {
-                    const required = item.minStock - item.currentStock;
-                    return `
-                        <div class="critical-item-card">
-                            <div class="critical-item-info">
-                                <div class="critical-item-name">${escapeHtml(item.name)}</div>
-                                <div class="critical-item-sku">מק"ט: ${escapeHtml(item.sku)}</div>
-                            </div>
-                            <div class="critical-item-stat">
-                                <div class="critical-item-label">מלאי נוכחי</div>
-                                <div class="critical-item-value">${item.currentStock}</div>
-                            </div>
-                            <div class="critical-item-stat">
-                                <div class="critical-item-label">מלאי מינימלי</div>
-                                <div class="critical-item-value">${item.minStock}</div>
-                            </div>
-                            <div class="critical-item-stat">
-                                <div class="critical-item-label">נדרש להזמין</div>
-                                <div class="critical-item-value" style="color: #dc2626; font-size: 22px;">${required}</div>
-                            </div>
-                        </div>
-                    `;
-                }).join('');
-            }
-            
-            modal.classList.add('show');
-        }
-
-        // Close critical items modal
-        function closeCriticalModal(event) {
-            const modal = document.getElementById('criticalModal');
-            if (!event || event.target === modal) {
-                modal.classList.remove('show');
-            }
-        }
-
-        // Contact Manager
-        function contactManager() {
-            const email = 'Yehiel.yshayev@icl-group.com';
-            const subject = 'בקשת תמיכה - מערכת ניהול מלאי';
-            const body = `שלום יחיאל,
-
-אני פונה אליך בנוגע למערכת ניהול המלאי.
-
-[נא להוסיף כאן את פרטי הפנייה]
-
-תודה רבה,
-`;
-            
-            const mailtoLink = `mailto:${email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-            window.location.href = mailtoLink;
-        }
-
-        // Export to Excel
-        function exportToExcel() {
-            if (inventory.length === 0) {
-                showNotification('אין נתונים לייצוא', 'error');
-                return;
-            }
-
-            const headers = ['מקט', 'שם הפריט', 'מלאי במחסן', 'מלאי מינימלי', 'כמות למשיכה', 'זמין במחסן ראשי'];
-            const csvContent = [
-                headers.join(','),
-                ...inventory.map(item => {
-                    const status = getStatus(item);
-                    return [
-                        `"${item.sku}"`,
-                        `"${item.name}"`,
-                        item.currentStock,
-                        item.minStock,
-                        status.reorderAmount,
-                        `"כן/לא"`
-                    ].join(',');
-                })
-            ].join('\n');
-
-            const blob = new Blob(['\ufeff' + csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            
-            link.setAttribute('href', url);
-            link.setAttribute('download', `inventory_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            showNotification('קובץ אקסל יוצא בהצלחה!');
-        }
-
-        // Load data from server
-        async function loadData() {
-            try {
-                const response = await fetch(API_URL);
-                if (response.ok) {
-                    inventory = await response.json();
-                    renderTable();
-                    updateStats();
-                    checkAlerts();
-                    updateSyncStatus('success');
-                } else {
-                    inventory = [];
-                    updateSyncStatus('error');
-                }
-            } catch (e) {
-                console.error('Error loading data:', e);
-                updateSyncStatus('error');
-                try {
-                    const saved = localStorage.getItem('inventoryData');
-                    if (saved) {
-                        inventory = JSON.parse(saved);
-                    }
-                } catch (e2) {
-                    console.error('Error loading from localStorage:', e2);
-                }
+        unsubscribe = window._onSnapshot(colRef,
+            (snapshot) => {
+                inventory = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
                 renderTable();
                 updateStats();
                 checkAlerts();
+                setSyncStatus('', 'מסונכרן ☁️');
+            },
+            (err) => {
+                console.error(err);
+                setSyncStatus('error', 'שגיאת חיבור');
             }
-        }
+        );
+    };
 
-        // Show notification
-        function showNotification(message, type = 'success') {
-            const notification = document.getElementById('notification');
-            const text = document.getElementById('notificationText');
-            
-            text.textContent = message;
-            notification.className = 'notification show';
-            
-            if (type === 'error') {
-                notification.classList.add('error');
+    // Called from Firebase module after load event
+    if (window._firebaseReady) {
+        window.startFirebaseListener();
+    }
+
+    // ── LocalStorage fallback (when Firebase not configured) ──
+    function loadFromLocalStorage() {
+        try {
+            const saved = localStorage.getItem('inventoryData');
+            if (saved) inventory = JSON.parse(saved);
+        } catch(e) {}
+        renderTable(); updateStats(); checkAlerts();
+        setSyncStatus('offline', 'מקומי בלבד');
+    }
+
+    function saveToLocalStorage() {
+        try { localStorage.setItem('inventoryData', JSON.stringify(inventory)); } catch(e) {}
+    }
+
+    // ── Date / Time ──
+    function updateDateTime() {
+        const now = new Date();
+        document.getElementById('currentDate').textContent =
+            now.toLocaleDateString('he-IL', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+        document.getElementById('currentTime').textContent =
+            now.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+    }
+    updateDateTime();
+    setInterval(updateDateTime, 1000);
+
+    // ── Add item ──
+    document.getElementById('addItemForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const item = {
+            sku: document.getElementById('itemSku').value.trim(),
+            name: document.getElementById('itemName').value.trim(),
+            currentStock: parseInt(document.getElementById('currentStock').value),
+            minStock: parseInt(document.getElementById('minStock').value),
+            lastUpdated: new Date().toISOString()
+        };
+
+        const btn = document.getElementById('addBtn');
+        btn.disabled = true;
+
+        try {
+            if (firebaseConfigured && window._db) {
+                const colRef = window._collection(window._db, window._COLLECTION);
+                await window._addDoc(colRef, item);
+                // onSnapshot will update inventory automatically
+            } else {
+                item._docId = Date.now().toString();
+                item.id = Date.now();
+                inventory.push(item);
+                saveToLocalStorage();
+                renderTable(); updateStats(); checkAlerts();
             }
-            
-            setTimeout(() => {
-                notification.classList.remove('show');
-            }, 3000);
+            this.reset();
+            showNotification('פריט נוסף בהצלחה! ✅');
+        } catch(err) {
+            console.error(err);
+            showNotification('שגיאה בהוספת פריט', 'error');
+        } finally {
+            btn.disabled = false;
+        }
+    });
+
+    // ── Update item ──
+    let updateTimeout = {};
+    async function updateItem(docId, field, value) {
+        // Optimistic local update
+        const item = inventory.find(i => i._docId === docId);
+        if (item) item[field] = value;
+        updateStats(); checkAlerts();
+
+        // Debounce writes
+        clearTimeout(updateTimeout[docId + field]);
+        updateTimeout[docId + field] = setTimeout(async () => {
+            try {
+                if (firebaseConfigured && window._db) {
+                    const docRef = window._doc(window._db, window._COLLECTION, docId);
+                    await window._updateDoc(docRef, { [field]: value, lastUpdated: new Date().toISOString() });
+                } else {
+                    saveToLocalStorage();
+                }
+                showNotification('עודכן ✅');
+            } catch(err) {
+                console.error(err);
+                showNotification('שגיאה בעדכון', 'error');
+            }
+        }, 800);
+    }
+
+    // ── Delete item ──
+    async function deleteItem(docId) {
+        if (!confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) return;
+        try {
+            if (firebaseConfigured && window._db) {
+                const docRef = window._doc(window._db, window._COLLECTION, docId);
+                await window._deleteDoc(docRef);
+            } else {
+                inventory = inventory.filter(i => i._docId !== docId);
+                saveToLocalStorage();
+                renderTable(); updateStats(); checkAlerts();
+            }
+            showNotification('הפריט נמחק', 'error');
+        } catch(err) {
+            console.error(err);
+            showNotification('שגיאה במחיקה', 'error');
+        }
+    }
+
+    // ── Render ──
+    function renderTable() {
+        const tbody = document.getElementById('inventoryTableBody');
+
+        if (inventory.length === 0) {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#718096;font-size:18px;font-weight:600;">אין פריטים במלאי – הוסף פריט ראשון</td></tr>`;
+            return;
         }
 
-        // Escape HTML
-        function escapeHtml(text) {
-            if (!text && text !== 0) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
+        tbody.innerHTML = inventory.map(item => {
+            const st = getStatus(item);
+            return `
+            <tr>
+                <td><input type="text" value="${esc(item.sku)}"
+                    onchange="updateItem('${item._docId}','sku',this.value)"
+                    style="font-weight:600;color:#0369a1;text-align:center"></td>
+                <td><input type="text" value="${esc(item.name)}"
+                    onchange="updateItem('${item._docId}','name',this.value)"></td>
+                <td><input type="number" value="${item.currentStock}" min="0"
+                    onchange="updateItem('${item._docId}','currentStock',parseInt(this.value))"
+                    style="font-weight:bold;font-size:16px;color:#0f172a"></td>
+                <td><input type="number" value="${item.minStock}" min="0"
+                    onchange="updateItem('${item._docId}','minStock',parseInt(this.value))"
+                    style="font-weight:600;color:#334155"></td>
+                <td><span class="status-badge ${st.cls}">${st.amount}</span></td>
+                <td style="font-weight:600">${item.available || 'כן/לא'}</td>
+                <td><button class="delete-btn" onclick="deleteItem('${item._docId}')">🗑️</button></td>
+            </tr>`;
+        }).join('');
+    }
 
-        // Initialize on load
-        window.addEventListener('load', initSystem);
-    </script>
+    function getStatus(item) {
+        const diff = item.minStock - item.currentStock;
+        const thresh = item.minStock * 1.05;
+        if (item.currentStock < item.minStock)  return { cls:'status-critical', amount: diff };
+        if (item.currentStock <= thresh)         return { cls:'status-warning',  amount: 0   };
+        return { cls:'status-good', amount: 0 };
+    }
+
+    function updateStats() {
+        let critical=0, warning=0, total=0;
+        inventory.forEach(item => {
+            const t = item.minStock * 1.05;
+            if (item.currentStock < item.minStock) critical++;
+            else if (item.currentStock <= t) warning++;
+            total += item.currentStock;
+        });
+        document.getElementById('totalItems').textContent   = inventory.length;
+        document.getElementById('criticalItems').textContent = critical;
+        document.getElementById('warningItems').textContent  = warning;
+        document.getElementById('totalValue').textContent    = total;
+    }
+
+    function checkAlerts() {
+        const crit = inventory.filter(i => i.currentStock < i.minStock);
+        const banner = document.getElementById('alertBanner');
+        if (crit.length > 0) {
+            document.getElementById('alertText').textContent =
+                `⚠️ התראה: ${crit.length} פריטים חסרים ודורשים הזמנה מיידית!`;
+            banner.classList.add('show');
+        } else {
+            banner.classList.remove('show');
+        }
+    }
+
+    // ── Sort ──
+    function sortByName() {
+        const icon = document.getElementById('sortIcon');
+        if (sortOrder !== 'asc') {
+            inventory.sort((a,b) => a.name.localeCompare(b.name,'he'));
+            sortOrder = 'asc'; icon.textContent = '↓';
+            showNotification('ממוין א-ת');
+        } else {
+            inventory.sort((a,b) => b.name.localeCompare(a.name,'he'));
+            sortOrder = 'desc'; icon.textContent = '↑';
+            showNotification('ממוין ת-א');
+        }
+        renderTable();
+    }
+
+    // ── Critical modal ──
+    function showCriticalItems() {
+        const crit = inventory.filter(i => i.currentStock < i.minStock);
+        document.getElementById('criticalItemsList').innerHTML = crit.length === 0
+            ? '<div style="text-align:center;padding:40px;color:#64748b">אין פריטים חסרים 🎉</div>'
+            : crit.map(item => {
+                const req = item.minStock - item.currentStock;
+                return `<div class="critical-item-card">
+                    <div><div class="critical-item-name">${esc(item.name)}</div>
+                         <div class="critical-item-sku">מק"ט: ${esc(item.sku)}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">מלאי נוכחי</div><div class="critical-item-value">${item.currentStock}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">מינימלי</div><div class="critical-item-value">${item.minStock}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">להזמין</div><div class="critical-item-value" style="font-size:22px">${req}</div></div>
+                </div>`;
+            }).join('');
+        document.getElementById('criticalModal').classList.add('show');
+    }
+    function closeCriticalModal(e) {
+        const m = document.getElementById('criticalModal');
+        if (!e || e.target === m) m.classList.remove('show');
+    }
+
+    // ── Contact ──
+    function contactManager() {
+        const sub  = encodeURIComponent('בקשת תמיכה – מערכת ניהול מלאי');
+        const body = encodeURIComponent('שלום יחיאל,\n\nאני פונה אליך בנוגע למערכת ניהול המלאי.\n\n[נא להוסיף פרטים]\n\nתודה');
+        window.location.href = `mailto:Yehiel.yshayev@icl-group.com?subject=${sub}&body=${body}`;
+    }
+
+    // ── Export ──
+    function exportToExcel() {
+        if (!inventory.length) { showNotification('אין נתונים לייצוא','error'); return; }
+        const rows = [['מקט','שם הפריט','מלאי במחסן','מלאי מינימלי','כמות למשיכה'],
+            ...inventory.map(item => {
+                const st = getStatus(item);
+                return [`"${item.sku}"`,`"${item.name}"`,item.currentStock,item.minStock,st.amount];
+            })];
+        const csv = rows.map(r=>r.join(',')).join('\n');
+        const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        showNotification('קובץ יוצא בהצלחה! 📊');
+    }
+
+    // ── Notification ──
+    function showNotification(msg, type='success') {
+        const n = document.getElementById('notification');
+        document.getElementById('notificationText').textContent = msg;
+        n.className = 'notification show' + (type==='error' ? ' error' : '');
+        setTimeout(()=>{ n.classList.remove('show'); }, 3000);
+    }
+
+    // ── Escape HTML ──
+    function esc(t) {
+        if (t == null) return '';
+        const d = document.createElement('div');
+        d.textContent = t;
+        return d.innerHTML;
+    }
+</script>
 </body>
 </html>
