@@ -4,282 +4,102 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FlowTrack – ניהול מלאי</title>
-
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
-        import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDO1KH2-jiCoKb1Zewvsf3Ie-V7aeyvS2E",
-            authDomain: "flow-track-30233.firebaseapp.com",
-            projectId: "flow-track-30233",
-            storageBucket: "flow-track-30233.firebasestorage.app",
-            messagingSenderId: "917329260541",
-            appId: "1:917329260541:web:cebed35df975334ba6f394"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-        const COLLECTION = 'inventory';
-
-        window._db = db;
-        window._collection = collection;
-        window._addDoc = addDoc;
-        window._updateDoc = updateDoc;
-        window._deleteDoc = deleteDoc;
-        window._doc = doc;
-        window._onSnapshot = onSnapshot;
-        window._COLLECTION = COLLECTION;
-
-        // Start real-time listener as soon as Firebase is ready
-        window.addEventListener('load', () => {
-            if (typeof window.startFirebaseListener === 'function') {
-                window.startFirebaseListener();
-            } else {
-                window._firebaseReady = true;
-            }
-        });
-    </script>
-
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif; background: #f0f4f8; min-height: 100vh; color: #1a202c; }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: #f0f4f8;
-            min-height: 100vh;
-            color: #1a202c;
-        }
-
-        /* ── Header ── */
-        .header {
-            background: #fff;
-            border-bottom: 1px solid #e2e8f0;
-            padding: 20px 48px;
-            box-shadow: 0 1px 3px rgba(0,0,0,.05);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 20px 48px; box-shadow: 0 1px 3px rgba(0,0,0,.05); display: flex; justify-content: space-between; align-items: center; }
         .header-title { display: flex; align-items: center; gap: 20px; }
-        .company-logo {
-            background: #0369a1; color: #fff;
-            padding: 10px 20px; border-radius: 6px;
-            font-size: 1.1rem; font-weight: 600;
-        }
-        .header h1 { font-size: 1.75rem; color: #0c4a6e; font-weight: 600; }
-        .header-subtitle { color: #64748b; font-size: .95rem; margin-top: 6px; }
+        .company-logo { background: #0369a1; color: #fff; padding: 10px 20px; border-radius: 6px; font-size: 1.1rem; font-weight: 600; }
+        .header h1 { font-size: 1.5rem; color: #0c4a6e; font-weight: 600; }
+        .header-subtitle { color: #64748b; font-size: .9rem; margin-top: 4px; }
+        .header-actions { display: flex; gap: 12px; align-items: center; }
 
-        .header-actions { display: flex; gap: 15px; align-items: center; }
+        .sync-status { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 6px; font-size: 13px; font-weight: 600; background: #ecfdf5; color: #059669; transition: all .3s; }
+        .sync-status.syncing { background: #fef3c7; color: #b45309; }
+        .sync-status.error { background: #fee2e2; color: #dc2626; }
+        .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+        .sync-status.syncing .sync-dot { animation: blink 1s infinite; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.3} }
 
-        /* Sync badge */
-        .sync-status {
-            display: flex; align-items: center; gap: 8px;
-            padding: 8px 16px; border-radius: 6px;
-            font-size: 13px; font-weight: 600;
-            background: #ecfdf5; color: #059669;
-            transition: all .3s;
-        }
-        .sync-status.syncing  { background: #fef3c7; color: #b45309; }
-        .sync-status.error    { background: #fee2e2; color: #dc2626; }
-        .sync-status.offline  { background: #f1f5f9; color: #64748b; }
+        .datetime-banner { background: linear-gradient(135deg,#0891b2,#0e7490); color: #fff; padding: 12px 48px; display: flex; justify-content: space-between; font-size: 14px; font-weight: 500; }
 
-        .sync-dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: #059669; transition: background .3s;
-        }
-        .sync-status.syncing .sync-dot { background: #b45309; animation: blink 1s infinite; }
-        .sync-status.error   .sync-dot { background: #dc2626; }
-        .sync-status.offline .sync-dot { background: #94a3b8; }
-
-        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-        /* ── Setup banner ── */
-        #setupBanner {
-            background: #1e40af; color: #fff;
-            padding: 20px 48px; display: none;
-            align-items: flex-start; gap: 20px;
-        }
-        #setupBanner.show { display: flex; }
-        #setupBanner h3 { margin-bottom: 10px; font-size: 1.1rem; }
-        #setupBanner ol { padding-right: 20px; line-height: 2; }
-        #setupBanner a { color: #93c5fd; }
-        #setupBanner code {
-            background: rgba(255,255,255,.15);
-            padding: 2px 8px; border-radius: 4px;
-            font-size: 13px; word-break: break-all;
-        }
-        .setup-close {
-            background: rgba(255,255,255,.2); border: none; color: #fff;
-            padding: 6px 14px; border-radius: 4px; cursor: pointer;
-            font-size: 13px; margin-top: 8px; white-space: nowrap;
-        }
-
-        /* ── Datetime banner ── */
-        .datetime-banner {
-            background: linear-gradient(135deg,#0891b2,#0e7490);
-            color: #fff; padding: 12px 48px;
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 14px; font-weight: 500;
-        }
-        .datetime-item { display: flex; align-items: center; gap: 8px; }
-
-        /* ── Alert banner ── */
-        .alert-banner {
-            background: #dc2626; color: #fff;
-            padding: 16px 48px; display: none;
-            align-items: center; justify-content: space-between; gap: 12px;
-            animation: blink 2s infinite;
-        }
+        .alert-banner { background: #dc2626; color: #fff; padding: 14px 48px; display: none; align-items: center; justify-content: space-between; gap: 12px; }
         .alert-banner.show { display: flex; }
-        .btn-view-critical {
-            background: #fff; color: #dc2626; border: none;
-            padding: 8px 16px; border-radius: 4px;
-            font-size: 13px; font-weight: 600; cursor: pointer;
-        }
-        .btn-view-critical:hover { background: #fee2e2; }
+        .btn-view-critical { background: #fff; color: #dc2626; border: none; padding: 8px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; }
 
-        /* ── Stats ── */
-        .stats-row {
-            display: grid; grid-template-columns: repeat(4,1fr);
-            background: #fff; border-bottom: 1px solid #e2e8f0;
-        }
-        .stat-box { padding: 32px; text-align: center; border-right: 1px solid #e2e8f0; }
+        .stats-row { display: grid; grid-template-columns: repeat(4,1fr); background: #fff; border-bottom: 1px solid #e2e8f0; }
+        .stat-box { padding: 28px; text-align: center; border-right: 1px solid #e2e8f0; }
         .stat-box:last-child { border-right: none; }
-        .stat-number { font-size: 2.5rem; font-weight: 600; color: #0369a1; }
-        .stat-label { color: #64748b; font-size: 13px; margin-top: 8px; text-transform: uppercase; letter-spacing: .5px; }
+        .stat-number { font-size: 2.2rem; font-weight: 600; color: #0369a1; }
+        .stat-label { color: #64748b; font-size: 12px; margin-top: 6px; text-transform: uppercase; letter-spacing: .5px; }
 
-        /* ── Add form ── */
-        .add-row-form { background: #f8fafc; padding: 24px 48px; border-bottom: 1px solid #e2e8f0; }
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 2fr 1fr 1fr 100px;
-            gap: 12px; align-items: end;
-        }
+        .add-row-form { background: #f8fafc; padding: 20px 48px; border-bottom: 1px solid #e2e8f0; }
+        .form-row { display: grid; grid-template-columns: 1fr 2fr 1fr 1fr 110px; gap: 12px; align-items: end; }
         .form-group { display: flex; flex-direction: column; }
-        .form-group label { font-size: 12px; font-weight: 600; color: #64748b; margin-bottom: 6px; text-transform: uppercase; }
-        .form-group input {
-            height: 38px; padding: 8px 12px;
-            border: 1px solid #e2e8f0; border-radius: 4px;
-            font-size: 14px; font-family: inherit; background: #fff;
-            transition: border .2s;
-        }
+        .form-group label { font-size: 11px; font-weight: 600; color: #64748b; margin-bottom: 5px; text-transform: uppercase; }
+        .form-group input { height: 38px; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 14px; font-family: inherit; background: #fff; }
         .form-group input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 3px rgba(8,145,178,.1); }
 
-        /* ── Buttons ── */
-        .btn {
-            background: #0369a1; color: #fff; border: none;
-            padding: 10px 20px; border-radius: 6px;
-            font-size: 14px; font-weight: 500; cursor: pointer;
-            transition: all .2s;
-        }
-        .btn:hover { background: #075985; transform: translateY(-1px); }
-        .btn:disabled { background: #cbd5e0; cursor: not-allowed; transform: none; }
+        .btn { background: #0369a1; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all .2s; height: 38px; }
+        .btn:hover { background: #075985; }
+        .btn:disabled { background: #cbd5e0; cursor: not-allowed; }
         .btn-success { background: #0891b2; }
         .btn-success:hover { background: #0e7490; }
-        .btn-contact {
-            background: #0891b2; color: #fff; border: none;
-            padding: 10px 20px; border-radius: 6px;
-            font-size: 14px; font-weight: 500; cursor: pointer;
-            display: flex; align-items: center; gap: 8px;
-        }
+        .btn-contact { background: #0891b2; color: #fff; border: none; padding: 10px 18px; border-radius: 6px; font-size: 14px; font-weight: 500; cursor: pointer; }
         .btn-contact:hover { background: #0e7490; }
 
-        /* ── Table ── */
-        .table-card { background: #fff; padding: 48px; overflow: auto; }
-        .inventory-table { width: 100%; border-collapse: collapse; }
+        .table-card { background: #fff; padding: 32px 48px; overflow: auto; }
+        .inventory-table { width: 100%; border-collapse: collapse; min-width: 700px; }
         .inventory-table thead { background: #f8fafc; border-bottom: 2px solid #e2e8f0; }
-        .inventory-table th {
-            padding: 16px 20px; text-align: center;
-            font-weight: 600; font-size: 13px; text-transform: uppercase;
-            letter-spacing: .5px; color: #64748b; white-space: nowrap;
-        }
+        .inventory-table th { padding: 14px 16px; text-align: center; font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: #64748b; white-space: nowrap; }
         .inventory-table th.sortable { cursor: pointer; }
         .inventory-table th.sortable:hover { background: #e2e8f0; }
-        .inventory-table tbody tr { border-bottom: 1px solid #e2e8f0; height: 60px; transition: background .15s; }
+        .inventory-table tbody tr { border-bottom: 1px solid #f1f5f9; transition: background .1s; }
         .inventory-table tbody tr:hover { background: #f8fafc; }
-        .inventory-table td { padding: 12px 15px; text-align: center; vertical-align: middle; }
-        .inventory-table input[type="text"],
-        .inventory-table input[type="number"] {
-            width: 100%; height: 38px; padding: 8px 12px;
-            border: 1px solid #e2e8f0; border-radius: 4px;
-            font-size: 14px; font-family: inherit; background: #fff;
-            text-align: center;
-        }
-        .inventory-table input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 3px rgba(8,145,178,.1); }
+        .inventory-table td { padding: 10px 12px; text-align: center; vertical-align: middle; }
+        .inventory-table input[type="text"], .inventory-table input[type="number"] { width: 100%; height: 36px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 14px; font-family: inherit; background: #fff; text-align: center; }
+        .inventory-table input:focus { outline: none; border-color: #0891b2; box-shadow: 0 0 0 2px rgba(8,145,178,.1); }
 
-        .status-badge {
-            display: inline-block; padding: 6px 16px; border-radius: 4px;
-            font-size: 12px; font-weight: 600; text-transform: uppercase;
-        }
+        .status-badge { display: inline-block; padding: 5px 14px; border-radius: 4px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
         .status-critical { background: #dc2626; color: #fff; }
-        .status-warning  { background: #f59e0b; color: #fff; }
-        .status-good     { background: #059669; color: #fff; }
+        .status-warning { background: #f59e0b; color: #fff; }
+        .status-good { background: #059669; color: #fff; }
 
-        .delete-btn {
-            background: transparent; color: #dc2626; border: none;
-            padding: 6px 12px; border-radius: 4px;
-            font-size: 20px; cursor: pointer; transition: all .2s;
-        }
-        .delete-btn:hover { background: #fee2e2; transform: scale(1.1); }
+        .delete-btn { background: transparent; color: #dc2626; border: none; padding: 6px 10px; border-radius: 4px; font-size: 18px; cursor: pointer; transition: all .2s; }
+        .delete-btn:hover { background: #fee2e2; }
 
-        /* ── Modal ── */
-        .modal-overlay {
-            display: none; position: fixed; inset: 0;
-            background: rgba(0,0,0,.5); z-index: 2000;
-            align-items: center; justify-content: center;
-        }
+        .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 2000; align-items: center; justify-content: center; }
         .modal-overlay.show { display: flex; }
-        .modal-content {
-            background: #fff; border-radius: 12px; padding: 32px;
-            max-width: 800px; width: 90%; max-height: 80vh;
-            overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3);
-        }
-        .modal-header {
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 24px; padding-bottom: 16px;
-            border-bottom: 2px solid #e2e8f0;
-        }
-        .modal-header h2 { color: #dc2626; font-size: 1.5rem; }
-        .modal-close {
-            background: transparent; border: none; font-size: 28px;
-            color: #64748b; cursor: pointer; width: 32px; height: 32px;
-            display: flex; align-items: center; justify-content: center;
-        }
-        .modal-close:hover { color: #dc2626; }
-        .critical-item-card {
-            background: #fee2e2; border: 2px solid #dc2626; border-radius: 8px;
-            padding: 16px; margin-bottom: 16px;
-            display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 16px;
-        }
-        .critical-item-name { font-weight: 700; color: #0f172a; font-size: 16px; }
-        .critical-item-sku  { font-size: 13px; color: #64748b; }
+        .modal-content { background: #fff; border-radius: 12px; padding: 32px; max-width: 800px; width: 90%; max-height: 80vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 2px solid #e2e8f0; }
+        .modal-header h2 { color: #dc2626; font-size: 1.4rem; }
+        .modal-close { background: transparent; border: none; font-size: 26px; color: #64748b; cursor: pointer; }
+        .critical-item-card { background: #fee2e2; border: 2px solid #dc2626; border-radius: 8px; padding: 16px; margin-bottom: 12px; display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 12px; }
+        .critical-item-name { font-weight: 700; color: #0f172a; font-size: 15px; }
+        .critical-item-sku { font-size: 12px; color: #64748b; }
         .critical-item-stat { text-align: center; }
-        .critical-item-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 4px; }
+        .critical-item-label { font-size: 11px; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
         .critical-item-value { font-size: 18px; font-weight: 700; color: #dc2626; }
 
-        /* ── Notification ── */
-        .notification {
-            position: fixed; bottom: 24px; left: 24px;
-            background: #0891b2; color: #fff;
-            padding: 16px 24px; border-radius: 6px;
-            box-shadow: 0 10px 25px rgba(0,0,0,.2);
-            transform: translateY(200px); transition: all .3s;
-            z-index: 1000; font-weight: 500; font-size: 14px;
-        }
+        .notification { position: fixed; bottom: 24px; left: 24px; background: #0891b2; color: #fff; padding: 14px 22px; border-radius: 6px; box-shadow: 0 8px 20px rgba(0,0,0,.2); transform: translateY(150px); transition: transform .3s; z-index: 1000; font-weight: 500; font-size: 14px; }
         .notification.show { transform: translateY(0); }
         .notification.error { background: #dc2626; }
 
-        @media (max-width: 1200px) {
-            .form-row { grid-template-columns: 1fr; }
+        .empty-state { text-align: center; padding: 60px 20px; color: #94a3b8; }
+
+        @media (max-width: 900px) {
+            .header { padding: 16px 20px; flex-wrap: wrap; gap: 12px; }
+            .datetime-banner { padding: 10px 20px; }
+            .add-row-form { padding: 16px 20px; }
+            .form-row { grid-template-columns: 1fr 1fr; }
+            .table-card { padding: 20px; }
             .stats-row { grid-template-columns: repeat(2,1fr); }
         }
     </style>
 </head>
 <body>
 
-<!-- Header -->
 <div class="header">
     <div class="header-title">
         <div class="company-logo">🏭 אחזקת משלוחים</div>
@@ -298,45 +118,19 @@
     </div>
 </div>
 
-<!-- Setup instructions banner -->
-<div id="setupBanner" class="show">
-    <div style="flex:1">
-        <h3>⚙️ הגדרה חד-פעמית נדרשת – Firebase (חינמי, 5 דקות)</h3>
-        <ol>
-            <li>היכנס ל-<a href="https://console.firebase.google.com/" target="_blank">console.firebase.google.com</a> עם חשבון Google</li>
-            <li>לחץ <strong>Create a project</strong> → תן שם → המשך</li>
-            <li>בתפריט שמאל: <strong>Build → Firestore Database → Create database</strong> → בחר <em>Start in test mode</em> → Next → Enable</li>
-            <li>בתפריט שמאל: <strong>Project settings</strong> (גלגל שיניים) → <strong>Your apps → &lt;/&gt; Web</strong> → רשום אפליקציה</li>
-            <li>העתק את האובייקט <code>firebaseConfig</code> שמקבל ופתח את ה-HTML בעורך טקסט</li>
-            <li>מצא את <code>const firebaseConfig = { ... }</code> בראש הקובץ והחלף בנתונים שלך</li>
-            <li>שמור ופתח מחדש – הסנכרון יעבוד מכל מכשיר ומכל מקום! 🎉</li>
-        </ol>
-        <button class="setup-close" onclick="document.getElementById('setupBanner').classList.remove('show')">הבנתי, סגור</button>
-    </div>
-</div>
-
-<!-- DateTime banner -->
 <div class="datetime-banner">
-    <div class="datetime-item">
-        <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
-        <span id="currentDate">טוען...</span>
-    </div>
-    <div class="datetime-item">
-        <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg>
-        <span id="currentTime">טוען...</span>
-    </div>
+    <span id="currentDate">טוען...</span>
+    <span id="currentTime">טוען...</span>
 </div>
 
-<!-- Alert banner -->
 <div class="alert-banner" id="alertBanner">
-    <div style="display:flex;align-items:center;gap:12px">
-        <svg width="24" height="24" fill="white" viewBox="0 0 24 24"><path d="M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z"/></svg>
+    <div style="display:flex;align-items:center;gap:10px">
+        <span style="font-size:20px">⚠️</span>
         <span id="alertText"></span>
     </div>
     <button class="btn-view-critical" onclick="showCriticalItems()">📋 הצג רשימה</button>
 </div>
 
-<!-- Stats -->
 <div class="stats-row">
     <div class="stat-box"><div class="stat-number" id="totalItems">0</div><div class="stat-label">סך פריטים</div></div>
     <div class="stat-box"><div class="stat-number" id="criticalItems">0</div><div class="stat-label">פריטים למשיכה</div></div>
@@ -344,43 +138,39 @@
     <div class="stat-box"><div class="stat-number" id="totalValue">0</div><div class="stat-label">יחידות במלאי</div></div>
 </div>
 
-<!-- Add form -->
 <div class="add-row-form">
-    <form id="addItemForm">
-        <div class="form-row">
-            <div class="form-group"><label>מקט</label><input type="text" id="itemSku" required placeholder="SKU-001"></div>
-            <div class="form-group"><label>שם הפריט</label><input type="text" id="itemName" required placeholder="ברגים M8"></div>
-            <div class="form-group"><label>מלאי במחסן</label><input type="number" id="currentStock" required min="0" placeholder="20"></div>
-            <div class="form-group"><label>מלאי מינימלי</label><input type="number" id="minStock" required min="0" placeholder="50"></div>
-            <div class="form-group"><label>&nbsp;</label><button type="submit" class="btn btn-success" id="addBtn">➕ הוסף</button></div>
-        </div>
-    </form>
+    <div class="form-row">
+        <div class="form-group"><label>מקט</label><input type="text" id="itemSku" placeholder="SKU-001"></div>
+        <div class="form-group"><label>שם הפריט</label><input type="text" id="itemName" placeholder="ברגים M8"></div>
+        <div class="form-group"><label>מלאי במחסן</label><input type="number" id="currentStock" min="0" placeholder="20"></div>
+        <div class="form-group"><label>מלאי מינימלי</label><input type="number" id="minStock" min="0" placeholder="50"></div>
+        <div class="form-group"><label>&nbsp;</label><button class="btn btn-success" id="addBtn" onclick="addItem()">➕ הוסף</button></div>
+    </div>
 </div>
 
-<!-- Table -->
 <div class="table-card">
     <table class="inventory-table">
         <thead>
             <tr>
-                <th style="width:15%">מקט</th>
-                <th class="sortable" style="width:25%" onclick="sortByName()"><span id="sortIcon">⇅</span> שם הפריט</th>
-                <th style="width:15%">מלאי במחסן</th>
-                <th style="width:15%">מלאי מינימלי</th>
+                <th style="width:12%">מקט</th>
+                <th class="sortable" style="width:28%" onclick="sortByName()"><span id="sortIcon">⇅</span> שם הפריט</th>
+                <th style="width:14%">מלאי במחסן</th>
+                <th style="width:14%">מלאי מינימלי</th>
                 <th style="width:12%">כמות למשיכה</th>
-                <th style="width:12%">זמין במחסן ראשי</th>
-                <th style="width:10%">פעולות</th>
+                <th style="width:12%">סטטוס</th>
+                <th style="width:8%">מחק</th>
             </tr>
         </thead>
-        <tbody id="inventoryTableBody"></tbody>
+        <tbody id="inventoryTableBody">
+            <tr><td colspan="7"><div class="empty-state">מתחבר למסד הנתונים...</div></td></tr>
+        </tbody>
     </table>
 </div>
 
-<!-- Notification -->
 <div class="notification" id="notification"><span id="notificationText"></span></div>
 
-<!-- Critical modal -->
-<div class="modal-overlay" id="criticalModal" onclick="closeCriticalModal(event)">
-    <div class="modal-content" onclick="event.stopPropagation()">
+<div class="modal-overlay" id="criticalModal" onclick="if(event.target===this)closeCriticalModal()">
+    <div class="modal-content">
         <div class="modal-header">
             <h2>🚨 פריטים הדורשים הזמנה מיידית</h2>
             <button class="modal-close" onclick="closeCriticalModal()">&times;</button>
@@ -389,77 +179,234 @@
     </div>
 </div>
 
-<script>
-    // ── State ──
+<script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js';
+    import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js';
+
+    const app = initializeApp({
+        apiKey: "AIzaSyDO1KH2-jiCoKb1Zewvsf3Ie-V7aeyvS2E",
+        authDomain: "flow-track-30233.firebaseapp.com",
+        projectId: "flow-track-30233",
+        storageBucket: "flow-track-30233.firebasestorage.app",
+        messagingSenderId: "917329260541",
+        appId: "1:917329260541:web:cebed35df975334ba6f394"
+    });
+
+    const db = getFirestore(app);
+    const COL = 'inventory';
+    const colRef = collection(db, COL);
+
     let inventory = [];
     let sortOrder = 'none';
-    let unsubscribe = null;
-    let firebaseConfigured = false;
+    let updateTimers = {};
 
-    // ── Detect if Firebase config was filled in ──
-    function checkFirebaseConfig() {
-        // The module script sets window._db if Firebase initialized
-        return !!window._db;
-    }
-
-    // ── Sync status helpers ──
     function setSyncStatus(state, text) {
         const el = document.getElementById('syncStatus');
         el.className = 'sync-status' + (state ? ' ' + state : '');
         document.getElementById('syncText').textContent = text;
     }
 
-    // ── Real-time listener ──
-    window.startFirebaseListener = function() {
-        if (!window._db) {
-            setSyncStatus('offline', 'לא מוגדר');
-            document.getElementById('setupBanner').classList.add('show');
-            // Fallback to localStorage
-            loadFromLocalStorage();
+    function notify(msg, type='success') {
+        const n = document.getElementById('notification');
+        document.getElementById('notificationText').textContent = msg;
+        n.className = 'notification show' + (type==='error' ? ' error' : '');
+        setTimeout(()=>{ n.classList.remove('show'); }, 3500);
+    }
+
+    function esc(t) {
+        if (t == null) return '';
+        const d = document.createElement('div');
+        d.textContent = String(t);
+        return d.innerHTML;
+    }
+
+    function getStatus(item) {
+        const diff = item.minStock - item.currentStock;
+        if (item.currentStock < item.minStock)       return { cls:'status-critical', amount: diff,    label:'חסר' };
+        if (item.currentStock <= item.minStock*1.05) return { cls:'status-warning',  amount: 0,        label:'אזהרה' };
+        return { cls:'status-good', amount: 0, label:'תקין' };
+    }
+
+    function renderTable() {
+        const tbody = document.getElementById('inventoryTableBody');
+        if (inventory.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state">📦 אין פריטים במלאי – הוסף פריט ראשון</div></td></tr>';
+            return;
+        }
+        tbody.innerHTML = inventory.map(item => {
+            const st = getStatus(item);
+            return `<tr>
+                <td><input type="text" value="${esc(item.sku)}" onchange="window._update('${item._id}','sku',this.value)" style="font-weight:600;color:#0369a1"></td>
+                <td><input type="text" value="${esc(item.name)}" onchange="window._update('${item._id}','name',this.value)"></td>
+                <td><input type="number" value="${item.currentStock}" min="0" onchange="window._update('${item._id}','currentStock',parseInt(this.value))" style="font-weight:700;font-size:15px"></td>
+                <td><input type="number" value="${item.minStock}" min="0" onchange="window._update('${item._id}','minStock',parseInt(this.value))"></td>
+                <td><span class="status-badge ${st.cls}">${st.amount}</span></td>
+                <td><span class="status-badge ${st.cls}">${st.label}</span></td>
+                <td><button class="delete-btn" onclick="window._delete('${item._id}')">🗑️</button></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function updateStats() {
+        let critical=0, warning=0, total=0;
+        inventory.forEach(item => {
+            if (item.currentStock < item.minStock) critical++;
+            else if (item.currentStock <= item.minStock*1.05) warning++;
+            total += (item.currentStock || 0);
+        });
+        document.getElementById('totalItems').textContent    = inventory.length;
+        document.getElementById('criticalItems').textContent = critical;
+        document.getElementById('warningItems').textContent  = warning;
+        document.getElementById('totalValue').textContent    = total;
+    }
+
+    function checkAlerts() {
+        const crit = inventory.filter(i => i.currentStock < i.minStock);
+        const banner = document.getElementById('alertBanner');
+        if (crit.length > 0) {
+            document.getElementById('alertText').textContent = `${crit.length} פריטים חסרים ודורשים הזמנה מיידית!`;
+            banner.classList.add('show');
+        } else {
+            banner.classList.remove('show');
+        }
+    }
+
+    // Real-time listener
+    setSyncStatus('syncing', 'מתחבר...');
+    onSnapshot(colRef,
+        (snapshot) => {
+            inventory = snapshot.docs.map(d => ({ _id: d.id, ...d.data() }));
+            renderTable();
+            updateStats();
+            checkAlerts();
+            setSyncStatus('', 'מסונכרן ☁️');
+        },
+        (err) => {
+            console.error('Firestore error:', err);
+            setSyncStatus('error', 'שגיאה: ' + err.code);
+            notify('שגיאת Firebase: ' + err.message, 'error');
+        }
+    );
+
+    // Add
+    window.addItem = async function() {
+        const sku  = document.getElementById('itemSku').value.trim();
+        const name = document.getElementById('itemName').value.trim();
+        const cur  = parseInt(document.getElementById('currentStock').value);
+        const min  = parseInt(document.getElementById('minStock').value);
+
+        if (!sku || !name || isNaN(cur) || isNaN(min)) {
+            notify('נא למלא את כל השדות', 'error');
             return;
         }
 
-        document.getElementById('setupBanner').classList.remove('show');
-        firebaseConfigured = true;
-        setSyncStatus('syncing', 'מתחבר...');
+        const btn = document.getElementById('addBtn');
+        btn.disabled = true;
+        btn.textContent = 'שומר...';
 
-        const colRef = window._collection(window._db, window._COLLECTION);
-
-        unsubscribe = window._onSnapshot(colRef,
-            (snapshot) => {
-                inventory = snapshot.docs.map(d => ({ _docId: d.id, ...d.data() }));
-                renderTable();
-                updateStats();
-                checkAlerts();
-                setSyncStatus('', 'מסונכרן ☁️');
-            },
-            (err) => {
-                console.error(err);
-                setSyncStatus('error', 'שגיאת חיבור');
-            }
-        );
+        try {
+            await addDoc(colRef, { sku, name, currentStock: cur, minStock: min, lastUpdated: new Date().toISOString() });
+            document.getElementById('itemSku').value = '';
+            document.getElementById('itemName').value = '';
+            document.getElementById('currentStock').value = '';
+            document.getElementById('minStock').value = '';
+            notify('✅ פריט נוסף ונשמר ב-Firebase!');
+        } catch(e) {
+            console.error('Add error:', e);
+            notify('שגיאה: ' + e.message, 'error');
+        } finally {
+            btn.disabled = false;
+            btn.textContent = '➕ הוסף';
+        }
     };
 
-    // Called from Firebase module after load event
-    if (window._firebaseReady) {
-        window.startFirebaseListener();
-    }
+    // Update (debounced)
+    window._update = function(id, field, value) {
+        const item = inventory.find(i => i._id === id);
+        if (item) item[field] = value;
+        updateStats(); checkAlerts();
+        clearTimeout(updateTimers[id+field]);
+        updateTimers[id+field] = setTimeout(async () => {
+            try {
+                await updateDoc(doc(db, COL, id), { [field]: value, lastUpdated: new Date().toISOString() });
+                notify('✅ עודכן');
+            } catch(e) {
+                notify('שגיאת עדכון: ' + e.message, 'error');
+            }
+        }, 1000);
+    };
 
-    // ── LocalStorage fallback (when Firebase not configured) ──
-    function loadFromLocalStorage() {
+    // Delete
+    window._delete = async function(id) {
+        if (!confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) return;
         try {
-            const saved = localStorage.getItem('inventoryData');
-            if (saved) inventory = JSON.parse(saved);
-        } catch(e) {}
-        renderTable(); updateStats(); checkAlerts();
-        setSyncStatus('offline', 'מקומי בלבד');
-    }
+            await deleteDoc(doc(db, COL, id));
+            notify('הפריט נמחק');
+        } catch(e) {
+            notify('שגיאת מחיקה: ' + e.message, 'error');
+        }
+    };
 
-    function saveToLocalStorage() {
-        try { localStorage.setItem('inventoryData', JSON.stringify(inventory)); } catch(e) {}
-    }
+    // Sort
+    window.sortByName = function() {
+        if (sortOrder !== 'asc') {
+            inventory.sort((a,b) => a.name.localeCompare(b.name,'he'));
+            sortOrder = 'asc';
+            document.getElementById('sortIcon').textContent = '↓';
+        } else {
+            inventory.sort((a,b) => b.name.localeCompare(a.name,'he'));
+            sortOrder = 'desc';
+            document.getElementById('sortIcon').textContent = '↑';
+        }
+        renderTable();
+    };
 
-    // ── Date / Time ──
+    // Critical modal
+    window.showCriticalItems = function() {
+        const crit = inventory.filter(i => i.currentStock < i.minStock);
+        document.getElementById('criticalItemsList').innerHTML = crit.length === 0
+            ? '<div style="text-align:center;padding:40px;color:#64748b">אין פריטים חסרים 🎉</div>'
+            : crit.map(item => {
+                const req = item.minStock - item.currentStock;
+                return `<div class="critical-item-card">
+                    <div><div class="critical-item-name">${esc(item.name)}</div><div class="critical-item-sku">מק"ט: ${esc(item.sku)}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">נוכחי</div><div class="critical-item-value">${item.currentStock}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">מינימלי</div><div class="critical-item-value">${item.minStock}</div></div>
+                    <div class="critical-item-stat"><div class="critical-item-label">להזמין</div><div class="critical-item-value" style="font-size:22px">${req}</div></div>
+                </div>`;
+            }).join('');
+        document.getElementById('criticalModal').classList.add('show');
+    };
+
+    window.closeCriticalModal = function() {
+        document.getElementById('criticalModal').classList.remove('show');
+    };
+
+    // Export
+    window.exportToExcel = function() {
+        if (!inventory.length) { notify('אין נתונים לייצוא','error'); return; }
+        const rows = [['מקט','שם הפריט','מלאי במחסן','מלאי מינימלי','כמות למשיכה','סטטוס'],
+            ...inventory.map(item => {
+                const st = getStatus(item);
+                return [`"${item.sku}"`,`"${item.name}"`,item.currentStock,item.minStock,st.amount,`"${st.label}"`];
+            })];
+        const csv = rows.map(r=>r.join(',')).join('\n');
+        const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `inventory_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        notify('קובץ יוצא בהצלחה! 📊');
+    };
+
+    // Contact
+    window.contactManager = function() {
+        const sub  = encodeURIComponent('בקשת תמיכה – מערכת ניהול מלאי');
+        const body = encodeURIComponent('שלום יחיאל,\n\nאני פונה אליך בנוגע למערכת ניהול המלאי.\n\n[נא להוסיף פרטים]\n\nתודה');
+        window.location.href = `mailto:Yehiel.yshayev@icl-group.com?subject=${sub}&body=${body}`;
+    };
+
+    // DateTime
     function updateDateTime() {
         const now = new Date();
         document.getElementById('currentDate').textContent =
@@ -470,228 +417,12 @@
     updateDateTime();
     setInterval(updateDateTime, 1000);
 
-    // ── Add item ──
-    document.getElementById('addItemForm').addEventListener('submit', async function(e) {
-        e.preventDefault();
-        const item = {
-            sku: document.getElementById('itemSku').value.trim(),
-            name: document.getElementById('itemName').value.trim(),
-            currentStock: parseInt(document.getElementById('currentStock').value),
-            minStock: parseInt(document.getElementById('minStock').value),
-            lastUpdated: new Date().toISOString()
-        };
-
-        const btn = document.getElementById('addBtn');
-        btn.disabled = true;
-
-        try {
-            if (firebaseConfigured && window._db) {
-                const colRef = window._collection(window._db, window._COLLECTION);
-                await window._addDoc(colRef, item);
-                // onSnapshot will update inventory automatically
-            } else {
-                item._docId = Date.now().toString();
-                item.id = Date.now();
-                inventory.push(item);
-                saveToLocalStorage();
-                renderTable(); updateStats(); checkAlerts();
-            }
-            this.reset();
-            showNotification('פריט נוסף בהצלחה! ✅');
-        } catch(err) {
-            console.error(err);
-            showNotification('שגיאה בהוספת פריט', 'error');
-        } finally {
-            btn.disabled = false;
-        }
-    });
-
-    // ── Update item ──
-    let updateTimeout = {};
-    async function updateItem(docId, field, value) {
-        // Optimistic local update
-        const item = inventory.find(i => i._docId === docId);
-        if (item) item[field] = value;
-        updateStats(); checkAlerts();
-
-        // Debounce writes
-        clearTimeout(updateTimeout[docId + field]);
-        updateTimeout[docId + field] = setTimeout(async () => {
-            try {
-                if (firebaseConfigured && window._db) {
-                    const docRef = window._doc(window._db, window._COLLECTION, docId);
-                    await window._updateDoc(docRef, { [field]: value, lastUpdated: new Date().toISOString() });
-                } else {
-                    saveToLocalStorage();
-                }
-                showNotification('עודכן ✅');
-            } catch(err) {
-                console.error(err);
-                showNotification('שגיאה בעדכון', 'error');
-            }
-        }, 800);
-    }
-
-    // ── Delete item ──
-    async function deleteItem(docId) {
-        if (!confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) return;
-        try {
-            if (firebaseConfigured && window._db) {
-                const docRef = window._doc(window._db, window._COLLECTION, docId);
-                await window._deleteDoc(docRef);
-            } else {
-                inventory = inventory.filter(i => i._docId !== docId);
-                saveToLocalStorage();
-                renderTable(); updateStats(); checkAlerts();
-            }
-            showNotification('הפריט נמחק', 'error');
-        } catch(err) {
-            console.error(err);
-            showNotification('שגיאה במחיקה', 'error');
-        }
-    }
-
-    // ── Render ──
-    function renderTable() {
-        const tbody = document.getElementById('inventoryTableBody');
-
-        if (inventory.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:#718096;font-size:18px;font-weight:600;">אין פריטים במלאי – הוסף פריט ראשון</td></tr>`;
-            return;
-        }
-
-        tbody.innerHTML = inventory.map(item => {
-            const st = getStatus(item);
-            return `
-            <tr>
-                <td><input type="text" value="${esc(item.sku)}"
-                    onchange="updateItem('${item._docId}','sku',this.value)"
-                    style="font-weight:600;color:#0369a1;text-align:center"></td>
-                <td><input type="text" value="${esc(item.name)}"
-                    onchange="updateItem('${item._docId}','name',this.value)"></td>
-                <td><input type="number" value="${item.currentStock}" min="0"
-                    onchange="updateItem('${item._docId}','currentStock',parseInt(this.value))"
-                    style="font-weight:bold;font-size:16px;color:#0f172a"></td>
-                <td><input type="number" value="${item.minStock}" min="0"
-                    onchange="updateItem('${item._docId}','minStock',parseInt(this.value))"
-                    style="font-weight:600;color:#334155"></td>
-                <td><span class="status-badge ${st.cls}">${st.amount}</span></td>
-                <td style="font-weight:600">${item.available || 'כן/לא'}</td>
-                <td><button class="delete-btn" onclick="deleteItem('${item._docId}')">🗑️</button></td>
-            </tr>`;
-        }).join('');
-    }
-
-    function getStatus(item) {
-        const diff = item.minStock - item.currentStock;
-        const thresh = item.minStock * 1.05;
-        if (item.currentStock < item.minStock)  return { cls:'status-critical', amount: diff };
-        if (item.currentStock <= thresh)         return { cls:'status-warning',  amount: 0   };
-        return { cls:'status-good', amount: 0 };
-    }
-
-    function updateStats() {
-        let critical=0, warning=0, total=0;
-        inventory.forEach(item => {
-            const t = item.minStock * 1.05;
-            if (item.currentStock < item.minStock) critical++;
-            else if (item.currentStock <= t) warning++;
-            total += item.currentStock;
+    // Enter key
+    ['itemSku','itemName','currentStock','minStock'].forEach(id => {
+        document.getElementById(id).addEventListener('keydown', e => {
+            if (e.key === 'Enter') window.addItem();
         });
-        document.getElementById('totalItems').textContent   = inventory.length;
-        document.getElementById('criticalItems').textContent = critical;
-        document.getElementById('warningItems').textContent  = warning;
-        document.getElementById('totalValue').textContent    = total;
-    }
-
-    function checkAlerts() {
-        const crit = inventory.filter(i => i.currentStock < i.minStock);
-        const banner = document.getElementById('alertBanner');
-        if (crit.length > 0) {
-            document.getElementById('alertText').textContent =
-                `⚠️ התראה: ${crit.length} פריטים חסרים ודורשים הזמנה מיידית!`;
-            banner.classList.add('show');
-        } else {
-            banner.classList.remove('show');
-        }
-    }
-
-    // ── Sort ──
-    function sortByName() {
-        const icon = document.getElementById('sortIcon');
-        if (sortOrder !== 'asc') {
-            inventory.sort((a,b) => a.name.localeCompare(b.name,'he'));
-            sortOrder = 'asc'; icon.textContent = '↓';
-            showNotification('ממוין א-ת');
-        } else {
-            inventory.sort((a,b) => b.name.localeCompare(a.name,'he'));
-            sortOrder = 'desc'; icon.textContent = '↑';
-            showNotification('ממוין ת-א');
-        }
-        renderTable();
-    }
-
-    // ── Critical modal ──
-    function showCriticalItems() {
-        const crit = inventory.filter(i => i.currentStock < i.minStock);
-        document.getElementById('criticalItemsList').innerHTML = crit.length === 0
-            ? '<div style="text-align:center;padding:40px;color:#64748b">אין פריטים חסרים 🎉</div>'
-            : crit.map(item => {
-                const req = item.minStock - item.currentStock;
-                return `<div class="critical-item-card">
-                    <div><div class="critical-item-name">${esc(item.name)}</div>
-                         <div class="critical-item-sku">מק"ט: ${esc(item.sku)}</div></div>
-                    <div class="critical-item-stat"><div class="critical-item-label">מלאי נוכחי</div><div class="critical-item-value">${item.currentStock}</div></div>
-                    <div class="critical-item-stat"><div class="critical-item-label">מינימלי</div><div class="critical-item-value">${item.minStock}</div></div>
-                    <div class="critical-item-stat"><div class="critical-item-label">להזמין</div><div class="critical-item-value" style="font-size:22px">${req}</div></div>
-                </div>`;
-            }).join('');
-        document.getElementById('criticalModal').classList.add('show');
-    }
-    function closeCriticalModal(e) {
-        const m = document.getElementById('criticalModal');
-        if (!e || e.target === m) m.classList.remove('show');
-    }
-
-    // ── Contact ──
-    function contactManager() {
-        const sub  = encodeURIComponent('בקשת תמיכה – מערכת ניהול מלאי');
-        const body = encodeURIComponent('שלום יחיאל,\n\nאני פונה אליך בנוגע למערכת ניהול המלאי.\n\n[נא להוסיף פרטים]\n\nתודה');
-        window.location.href = `mailto:Yehiel.yshayev@icl-group.com?subject=${sub}&body=${body}`;
-    }
-
-    // ── Export ──
-    function exportToExcel() {
-        if (!inventory.length) { showNotification('אין נתונים לייצוא','error'); return; }
-        const rows = [['מקט','שם הפריט','מלאי במחסן','מלאי מינימלי','כמות למשיכה'],
-            ...inventory.map(item => {
-                const st = getStatus(item);
-                return [`"${item.sku}"`,`"${item.name}"`,item.currentStock,item.minStock,st.amount];
-            })];
-        const csv = rows.map(r=>r.join(',')).join('\n');
-        const blob = new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8;'});
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `inventory_${new Date().toISOString().split('T')[0]}.csv`;
-        a.click();
-        showNotification('קובץ יוצא בהצלחה! 📊');
-    }
-
-    // ── Notification ──
-    function showNotification(msg, type='success') {
-        const n = document.getElementById('notification');
-        document.getElementById('notificationText').textContent = msg;
-        n.className = 'notification show' + (type==='error' ? ' error' : '');
-        setTimeout(()=>{ n.classList.remove('show'); }, 3000);
-    }
-
-    // ── Escape HTML ──
-    function esc(t) {
-        if (t == null) return '';
-        const d = document.createElement('div');
-        d.textContent = t;
-        return d.innerHTML;
-    }
+    });
 </script>
 </body>
 </html>
