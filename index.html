@@ -66,6 +66,45 @@
             font-weight: 500;
         }
 
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #ecfdf5;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            color: #059669;
+        }
+
+        .sync-status.syncing {
+            background: #fef3c7;
+            color: #b45309;
+        }
+
+        .sync-status.error {
+            background: #fee2e2;
+            color: #dc2626;
+        }
+
+        .sync-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #059669;
+        }
+
+        .sync-indicator.syncing {
+            background: #b45309;
+            animation: pulse 1s infinite;
+        }
+
+        .sync-indicator.error {
+            background: #dc2626;
+        }
+
         .datetime-banner {
             background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
             color: white;
@@ -107,6 +146,12 @@
             background: #075985;
             transform: translateY(-1px);
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .btn:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .btn-success {
@@ -607,6 +652,10 @@
                 </div>
             </div>
             <div class="header-actions">
+                <div class="sync-status" id="syncStatus">
+                    <span class="sync-indicator"></span>
+                    <span>מסונכרן</span>
+                </div>
                 <button class="btn-contact" onclick="contactManager()">📧 צור קשר - יחיאל</button>
                 <button class="btn btn-success" onclick="exportToExcel()">📊 ייצא לאקסל</button>
             </div>
@@ -681,7 +730,7 @@
                     </div>
                     <div class="form-group">
                         <label>&nbsp;</label>
-                        <button type="submit" class="btn btn-success">➕ הוסף</button>
+                        <button type="submit" class="btn btn-success" id="addBtn">➕ הוסף</button>
                     </div>
                 </div>
             </form>
@@ -727,17 +776,64 @@
     </div>
 
     <script>
+        const API_URL = '/api/inventory';
         let inventory = [];
         let sortOrder = 'none'; // 'none', 'asc', 'desc'
+        let isSyncing = false;
 
         // Initialize system
         function initSystem() {
             loadData();
-            renderTable();
-            updateStats();
-            checkAlerts();
             updateDateTime();
             setInterval(updateDateTime, 1000);
+            setInterval(syncData, 5000); // Sync every 5 seconds
+        }
+
+        // Update sync status
+        function updateSyncStatus(status) {
+            const syncEl = document.getElementById('syncStatus');
+            const indicator = syncEl.querySelector('.sync-indicator');
+            
+            syncEl.className = 'sync-status';
+            indicator.className = 'sync-indicator';
+            
+            if (status === 'syncing') {
+                syncEl.classList.add('syncing');
+                indicator.classList.add('syncing');
+                syncEl.innerHTML = '<span class="sync-indicator syncing"></span><span>מסנכרן...</span>';
+            } else if (status === 'error') {
+                syncEl.classList.add('error');
+                indicator.classList.add('error');
+                syncEl.innerHTML = '<span class="sync-indicator error"></span><span>שגיאת סנכרון</span>';
+            } else {
+                syncEl.innerHTML = '<span class="sync-indicator"></span><span>מסונכרן</span>';
+            }
+        }
+
+        // Sync data with server
+        async function syncData() {
+            if (isSyncing || inventory.length === 0) return;
+            
+            try {
+                updateSyncStatus('syncing');
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ inventory })
+                });
+                
+                if (response.ok) {
+                    updateSyncStatus('syncing');
+                    setTimeout(() => updateSyncStatus('success'), 1000);
+                } else {
+                    updateSyncStatus('error');
+                }
+            } catch (e) {
+                console.error('Sync error:', e);
+                updateSyncStatus('error');
+            }
         }
 
         // Update date and time
@@ -775,7 +871,7 @@
         }
 
         // Add new item
-        document.getElementById('addItemForm').addEventListener('submit', function(e) {
+        document.getElementById('addItemForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const item = {
@@ -787,19 +883,40 @@
                 lastUpdated: new Date().toISOString()
             };
 
-            inventory.push(item);
-            saveData();
-            
-            // Reset sort order when adding new item
-            sortOrder = 'none';
-            document.getElementById('sortIcon').textContent = '⇅';
-            document.getElementById('sortIcon').classList.remove('active');
-            
-            renderTable();
-            updateStats();
-            checkAlerts();
-            this.reset();
-            showNotification('פריט נוסף בהצלחה!');
+            const addBtn = document.getElementById('addBtn');
+            addBtn.disabled = true;
+
+            try {
+                const response = await fetch(API_URL + '/add', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(item)
+                });
+
+                if (response.ok) {
+                    inventory.push(item);
+                    
+                    // Reset sort order when adding new item
+                    sortOrder = 'none';
+                    document.getElementById('sortIcon').textContent = '⇅';
+                    document.getElementById('sortIcon').classList.remove('active');
+                    
+                    renderTable();
+                    updateStats();
+                    checkAlerts();
+                    this.reset();
+                    showNotification('פריט נוסף בהצלחה!');
+                } else {
+                    showNotification('שגיאה בהוספת הפריט', 'error');
+                }
+            } catch (e) {
+                console.error('Error adding item:', e);
+                showNotification('שגיאה בחיבור לשרת', 'error');
+            } finally {
+                addBtn.disabled = false;
+            }
         });
 
         // Render table
@@ -885,28 +1002,53 @@
         }
 
         // Update item
-        function updateItem(id, field, value) {
+        async function updateItem(id, field, value) {
             const item = inventory.find(i => i.id === id);
             if (item) {
                 item[field] = value;
                 item.lastUpdated = new Date().toISOString();
-                saveData();
-                renderTable();
-                updateStats();
-                checkAlerts();
-                showNotification('עודכן בהצלחה!');
+                
+                try {
+                    const response = await fetch(`${API_URL}/${id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ [field]: value })
+                    });
+                    
+                    if (response.ok) {
+                        renderTable();
+                        updateStats();
+                        checkAlerts();
+                        showNotification('עודכן בהצלחה!');
+                    }
+                } catch (e) {
+                    console.error('Error updating item:', e);
+                    showNotification('שגיאה בעדכון', 'error');
+                }
             }
         }
 
         // Delete item
-        function deleteItem(id) {
+        async function deleteItem(id) {
             if (confirm('האם אתה בטוח שברצונך למחוק פריט זה?')) {
-                inventory = inventory.filter(i => i.id !== id);
-                saveData();
-                renderTable();
-                updateStats();
-                checkAlerts();
-                showNotification('הפריט נמחק', 'error');
+                try {
+                    const response = await fetch(`${API_URL}/${id}`, {
+                        method: 'DELETE'
+                    });
+                    
+                    if (response.ok) {
+                        inventory = inventory.filter(i => i.id !== id);
+                        renderTable();
+                        updateStats();
+                        checkAlerts();
+                        showNotification('הפריט נמחק', 'error');
+                    }
+                } catch (e) {
+                    console.error('Error deleting item:', e);
+                    showNotification('שגיאה במחיקה', 'error');
+                }
             }
         }
 
@@ -1052,39 +1194,36 @@
             showNotification('קובץ אקסל יוצא בהצלחה!');
         }
 
-        // Clear all
-        function clearAll() {
-            if (confirm('האם אתה בטוח שברצונך למחוק את כל הנתונים?')) {
-                if (confirm('זוהי פעולה בלתי הפיכה! האם להמשיך?')) {
-                    inventory = [];
-                    saveData();
+        // Load data from server
+        async function loadData() {
+            try {
+                const response = await fetch(API_URL);
+                if (response.ok) {
+                    inventory = await response.json();
                     renderTable();
                     updateStats();
                     checkAlerts();
-                    showNotification('כל הנתונים נמחקו', 'error');
-                }
-            }
-        }
-
-        // Save data
-        function saveData() {
-            try {
-                localStorage.setItem('inventoryData', JSON.stringify(inventory));
-            } catch (e) {
-                console.error('Error saving:', e);
-            }
-        }
-
-        // Load data
-        function loadData() {
-            try {
-                const saved = localStorage.getItem('inventoryData');
-                if (saved) {
-                    inventory = JSON.parse(saved);
+                    updateSyncStatus('success');
+                } else {
+                    // Fallback to empty inventory
+                    inventory = [];
+                    updateSyncStatus('error');
                 }
             } catch (e) {
-                console.error('Error loading:', e);
-                inventory = [];
+                console.error('Error loading data:', e);
+                updateSyncStatus('error');
+                // Try to load from localStorage as fallback
+                try {
+                    const saved = localStorage.getItem('inventoryData');
+                    if (saved) {
+                        inventory = JSON.parse(saved);
+                    }
+                } catch (e2) {
+                    console.error('Error loading from localStorage:', e2);
+                }
+                renderTable();
+                updateStats();
+                checkAlerts();
             }
         }
 
@@ -1115,13 +1254,6 @@
 
         // Initialize on load
         window.addEventListener('load', initSystem);
-
-        // Auto-save every 30 seconds
-        setInterval(() => {
-            if (inventory.length > 0) {
-                saveData();
-            }
-        }, 30000);
     </script>
 </body>
 </html>
